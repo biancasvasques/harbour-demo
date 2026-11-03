@@ -11,6 +11,8 @@ export const maxDuration = 45;
 const PER_CONVERSATION = 20;
 const PER_DAY = 200;
 
+const AGENT_OFF_MESSAGE = 'Thanks for your message! Our online assistant is switched off right now, so a consultant will reply in this chat.';
+
 const Post = z.object({
   token: z.string().uuid().optional(),
   message: z.string().trim().min(1).max(1000),
@@ -118,7 +120,7 @@ export async function POST(req: Request) {
     // a person owns this conversation: the agent stays silent
   } else if (!s.agent_enabled) {
     await setStatus('needs_human', 'Agent switched off');
-    await say('system', s.handoff_message, { meta: { agent_off: true } });
+    await say('system', AGENT_OFF_MESSAGE, { meta: { agent_off: true } });
     replied = true;
   } else {
     const facts = (await db().query<{ code: string; title: string; content: string }>(
