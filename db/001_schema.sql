@@ -1,6 +1,5 @@
 -- Harbour Study Abroad — support agent demo
--- Schema for a plain Postgres (Railway). Everything lives in schema "harbour",
--- so it can share the database with n8n (which has its own "settings" table).
+-- Schema for a plain Postgres (Neon). Everything lives in schema "harbour".
 --
 -- Who touches the database: ONLY the Next.js app, server-side.
 --   * the browser never talks to the database;
