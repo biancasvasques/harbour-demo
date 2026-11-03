@@ -7,7 +7,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
 
-const url = process.env.DATABASE_URL;
+// Neon gives a pooled DATABASE_URL and a direct DATABASE_URL_UNPOOLED; DDL goes direct.
+const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!url) {
   console.log('[migrate] DATABASE_URL not set, skipping.');
   process.exit(0);

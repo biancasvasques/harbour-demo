@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 
 // Server-side only. The browser never sees DATABASE_URL.
+// Queries always name the schema (harbour.x): poolers like Neon's ignore search_path.
 const globalForPool = globalThis as unknown as { harbourPool?: Pool };
 
 function makePool(): Pool {
@@ -11,7 +12,6 @@ function makePool(): Pool {
     connectionString: url,
     ssl: local ? false : { rejectUnauthorized: false },
     max: 3,
-    options: '-c search_path=harbour',
   });
 }
 
