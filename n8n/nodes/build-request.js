@@ -1,0 +1,97 @@
+// n8n Code node "Build request" (Run Once for All Items).
+//
+// Receives the context the app sends (the agent never reads the database) and
+// builds the Claude request. The reply format is FIXED here, in code, not in
+// the editable instructions: editing the instructions in the panel can change
+// the tone, never the contract the code checks afterwards.
+const body = ($input.first().json || {}).body || {};
+
+function text(v, max) {
+  return typeof v === 'string' ? v.slice(0, max) : '';
+}
+
+const instructions = text(body.instructions, 20000);
+const message = text(body.message, 2000).trim();
+const facts = Array.isArray(body.facts) ? body.facts.slice(0, 200) : [];
+const history = Array.isArray(body.history) ? body.history.slice(-10) : [];
+
+if (!instructions || !message) {
+  throw new Error('invalid_input: instructions and message are required');
+}
+
+// Only facts the app marked as approved arrive here. Each one has a short code
+// the model must cite; the next node checks every code against this list.
+const approvedCodes = [];
+const factLines = [];
+for (const f of facts) {
+  const code = text(f && f.code, 10);
+  const content = text(f && f.content, 2000);
+  if (!/^F\d{2,3}$/.test(code) || !content) continue;
+  approvedCodes.push(code);
+  factLines.push(`[${code}] ${text(f.title, 200)}: ${content}`);
+}
+
+const ROLE = { visitor: 'Visitor', agent: 'Assistant', staff: 'Harbour staff' };
+const transcript = history
+  .filter((m) => m && ROLE[m.role])
+  .map((m) => `${ROLE[m.role]}: ${text(m.content, 2000)}`)
+  .join('\n');
+
+const rules = [
+  '## Approved facts',
+  'These are the ONLY things you may state as true about Harbour Study Abroad.',
+  'Cite the code of every fact you use in fact_codes. If no fact answers the',
+  'question, set knew to false and do not guess. Greetings and small talk need',
+  'no fact.',
+  '',
+  factLines.join('\n') || '(no approved facts)',
+].join('\n');
+
+const tool = {
+  name: 'answer_visitor',
+  description: 'Reply to the website visitor and report what the reply is based on.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      reply: { type: 'string', description: 'The message shown to the visitor.' },
+      knew: {
+        type: 'boolean',
+        description: 'true only if the approved facts answer the question (or it is a greeting). false if a person must answer.',
+      },
+      fact_codes: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Codes of the approved facts used, e.g. ["F07"]. Empty for greetings.',
+      },
+      needs_human: {
+        type: 'boolean',
+        description: 'true if a consultant must take over (unknown answer, quote, booking, complaint, asked for a person).',
+      },
+      reason: { type: 'string', description: 'Short internal note for the team when needs_human is true.' },
+    },
+    required: ['reply', 'knew', 'fact_codes', 'needs_human'],
+  },
+};
+
+const payload = {
+  // "Simulate AI failure" in the panel sends a model that does not exist, so the
+  // demo exercises the REAL error path of the workflow, not a fake one.
+  model: body.simulate_failure === true ? 'harbour-simulated-failure' : 'claude-sonnet-5-5',
+  max_tokens: 1024,
+  system: [
+    { type: 'text', text: instructions, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: rules, cache_control: { type: 'ephemeral' } },
+  ],
+  messages: [
+    {
+      role: 'user',
+      content:
+        (transcript ? `Conversation so far:\n${transcript}\n\n` : '') +
+        `New message from the visitor:\n<visitor_message>\n${message}\n</visitor_message>`,
+    },
+  ],
+  tools: [tool],
+  tool_choice: { type: 'tool', name: 'answer_visitor' },
+};
+
+return [{ json: { payload, approved_codes: approvedCodes } }];
