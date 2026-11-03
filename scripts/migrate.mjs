@@ -23,9 +23,10 @@ const client = new pg.Client({ connectionString: url, ssl });
 await client.connect();
 
 try {
-  await client.query(`create table if not exists public.schema_migrations (
+  await client.query('create schema if not exists harbour');
+  await client.query(`create table if not exists harbour.schema_migrations (
     file text primary key, applied_at timestamptz not null default now())`);
-  const done = new Set((await client.query('select file from public.schema_migrations')).rows.map((r) => r.file));
+  const done = new Set((await client.query('select file from harbour.schema_migrations')).rows.map((r) => r.file));
 
   for (const file of files) {
     if (done.has(file)) continue;
@@ -33,7 +34,7 @@ try {
     await client.query('begin');
     try {
       await client.query(sql);
-      await client.query('insert into public.schema_migrations(file) values ($1)', [file]);
+      await client.query('insert into harbour.schema_migrations(file) values ($1)', [file]);
       await client.query('commit');
       console.log(`[migrate] applied ${file}`);
     } catch (err) {

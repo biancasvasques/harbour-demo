@@ -4,13 +4,13 @@
 -- reset_demo() : deletes every conversation, message and error, then seeds.
 --                Called by the "Reset demo" button in the panel.
 
-create or replace function public.seed_demo() returns void
+create or replace function harbour.seed_demo() returns void
 language plpgsql as $$
 begin
-  delete from public.facts;
-  delete from public.settings;
+  delete from harbour.facts;
+  delete from harbour.settings;
 
-  insert into public.settings (id, agent_enabled, instructions, timezone, business_hours,
+  insert into harbour.settings (id, agent_enabled, instructions, timezone, business_hours,
                                after_hours_notice, fallback_message, handoff_message)
   values (
     1, true,
@@ -36,7 +36,7 @@ When to hand over to a person
     'Good question. I do not have that information, so I have passed your message to a consultant, who will reply right here in this chat.'
   );
 
-  insert into public.facts (code, topic, title, content, approved) values
+  insert into harbour.facts (code, topic, title, content, approved) values
   ('F01','About us','Who we are',
    'Harbour Study Abroad is an education agency based in Sydney, founded in 2014. We help international students choose and enrol in English courses, vocational (VET) courses and university programs in Australia and New Zealand.', true),
   ('F02','About us','Office location',
@@ -86,13 +86,13 @@ When to hand over to a person
    'Airport pickup is free for every student.', false);
 end $$;
 
-create or replace function public.reset_demo() returns void
+create or replace function harbour.reset_demo() returns void
 language plpgsql as $$
 begin
-  delete from public.agent_errors;
-  delete from public.messages;
-  delete from public.conversations;
-  perform public.seed_demo();
+  delete from harbour.agent_errors;
+  delete from harbour.messages;
+  delete from harbour.conversations;
+  perform harbour.seed_demo();
 end $$;
 
-select public.seed_demo();
+select harbour.seed_demo();
