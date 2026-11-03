@@ -2,10 +2,10 @@
 --
 -- seed_demo()  : puts settings and facts back to the original demo state.
 -- reset_demo() : deletes every conversation, message and error, then seeds.
---                Called by the "Reset demo" button (authenticated only).
+--                Called by the "Reset demo" button in the panel.
 
 create or replace function public.seed_demo() returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql as $$
 begin
   delete from public.facts;
   delete from public.settings;
@@ -87,19 +87,12 @@ When to hand over to a person
 end $$;
 
 create or replace function public.reset_demo() returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql as $$
 begin
-  if auth.role() is distinct from 'authenticated' and current_user not in ('postgres','service_role') then
-    raise exception 'not allowed';
-  end if;
   delete from public.agent_errors;
   delete from public.messages;
   delete from public.conversations;
   perform public.seed_demo();
 end $$;
-
-revoke all on function public.seed_demo()  from public, anon, authenticated;
-revoke all on function public.reset_demo() from public, anon;
-grant execute on function public.reset_demo() to authenticated;
 
 select public.seed_demo();

@@ -1,11 +1,10 @@
 -- Harbour Study Abroad — support agent demo
--- Schema. Apply on an EMPTY Supabase project.
+-- Schema for a plain Postgres (Railway). Apply on an EMPTY database.
 --
--- Who touches what:
---   * anon (browser)      : nothing. The public chat talks only to /api/chat.
---   * /api/chat and n8n   : service_role (bypasses RLS, server-side only).
---   * authenticated (demo staff login): reads everything, edits settings,
---     facts and conversation status, writes staff replies, resets the demo.
+-- Who touches the database: ONLY the Next.js app, server-side.
+--   * the browser never talks to the database;
+--   * n8n (the agent) never talks to the database either: the app sends it the
+--     context and saves what comes back.
 
 create extension if not exists pgcrypto;
 
@@ -85,36 +84,6 @@ create table public.agent_errors (
   created_at       timestamptz not null default now()
 );
 create index agent_errors_open_idx on public.agent_errors (created_at desc) where resolved_at is null;
-
--- ---------------------------------------------------------------------------
--- RLS: on everywhere. anon gets nothing. authenticated = the demo staff user.
--- ---------------------------------------------------------------------------
-alter table public.settings      enable row level security;
-alter table public.facts         enable row level security;
-alter table public.conversations enable row level security;
-alter table public.messages      enable row level security;
-alter table public.agent_errors  enable row level security;
-
-revoke all on public.settings, public.facts, public.conversations, public.messages, public.agent_errors from anon;
-
-create policy staff_read_settings  on public.settings      for select to authenticated using (true);
-create policy staff_edit_settings  on public.settings      for update to authenticated using (true) with check (true);
-
-create policy staff_read_facts     on public.facts         for select to authenticated using (true);
-create policy staff_add_facts      on public.facts         for insert to authenticated with check (true);
-create policy staff_edit_facts     on public.facts         for update to authenticated using (true) with check (true);
-
-create policy staff_read_convs     on public.conversations for select to authenticated using (true);
-create policy staff_edit_convs     on public.conversations for update to authenticated using (true) with check (true);
-
-create policy staff_read_msgs      on public.messages      for select to authenticated using (true);
-create policy staff_reply          on public.messages      for insert to authenticated with check (role = 'staff');
-
-create policy staff_read_errors    on public.agent_errors  for select to authenticated using (true);
-create policy staff_resolve_errors on public.agent_errors  for update to authenticated using (true) with check (true);
-
--- the panel updates in real time
-alter publication supabase_realtime add table public.conversations, public.messages, public.agent_errors;
 
 -- keep updated_at honest
 create or replace function public.touch_updated_at() returns trigger
