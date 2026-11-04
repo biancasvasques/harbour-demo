@@ -400,7 +400,7 @@ export default function Chat() {
             maxLength={1000} aria-label="Your message" disabled={sending} />
           <button type="submit" className="send" disabled={sending || !draft.trim()} aria-label="Send"><Send /></button>
         </form>
-        <p className="disclaimer">Demo with an invented company · please don&apos;t share personal data</p>
+        <p className="disclaimer">Please don&apos;t share personal data</p>
       </div>
     </div>
   );
