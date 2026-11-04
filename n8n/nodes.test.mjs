@@ -142,13 +142,19 @@ test('router: booking confirmation is validated', () => {
   assert.throws(() => run('read-request.js', { body: { kind: 'booking_confirm', conversation_id: 'c1', booking: { slot: 'x' } } }), /invalid_input/);
 });
 test('offer times: opens the card when there are free times, hands over when none', () => {
-  const some = run('offer-times.js', { count: 7 });
+  const rr = { 'Read request': { message: 'I want to book' } };
+  const some = run('offer-times.js', { count: 7 }, rr);
   assert.equal(some.action, 'booking');
   assert.match(some.reply, /7 free times/);
-  const none = run('offer-times.js', { count: 0 });
+  const none = run('offer-times.js', { count: 0 }, rr);
   assert.equal(none.action, undefined);
   assert.equal(none.needs_human, true);
 });
+test('offer times: answers in the visitor\'s language', () => {
+  assert.match(run('offer-times.js', { count: 3 }, { 'Read request': { message: 'quero agendar uma consulta' } }).reply, /horários livres/);
+  assert.match(run('offer-times.js', { count: 3 }, { 'Read request': { message: 'quiero reservar una cita' } }).reply, /horarios libres/);
+});
+
 test('booking result: confirmation with reference, or a clear "taken" message', () => {
   const done = run('booking-result.js', { ok: true, ref: 'HB-1234', when: 'Fri, 6 Nov, 2:00 pm', where: 'online (video call)' });
   assert.equal(done.route, 'booking_done');
