@@ -47,6 +47,35 @@ Team ─► Panel (/admin): conversations, take over, knowledge, settings, booki
 - **The workflow** (`n8n/`) is the orchestrator. Each decision is a visible box on the n8n canvas. Claude is just one branch.
 - **The model** is `claude-sonnet-5-5`, with structured output and prompt caching.
 
+### The n8n workflow, box by box
+
+Every message goes through these boxes. Most routes are plain rules; only the purple branch calls Claude, and its answer is checked in code before the visitor sees it.
+
+```mermaid
+flowchart LR
+  W([Webhook]) --> R[Read request<br/><i>decides the route</i>] --> S{Router}
+  S -->|Silent| SS[Stay silent<br/><i>team is answering</i>]
+  S -->|Goodbye| G[Goodbye + survey]
+  S -->|Agent off| AO[Agent off message]
+  S -->|Ready answer| RA[Ready answer<br/><i>approved fact, no AI</i>]
+  S -->|Booking| FT[Check free times<br/><i>app tool</i>] --> OT[Offer times]
+  S -->|Confirm booking| RS[Reserve slot<br/><i>app tool</i>] --> BR[Booking result]
+  S -->|Claude| BQ[Build request] --> CC[Call Claude] --> CA[Check answer<br/><i>facts + guardrails</i>] --> WB{Wants to book?}
+  WB -->|yes| FT
+  CC -. error .-> DF[Describe failure]
+  FT -. error .-> TF[Tool failure]
+  RS -. error .-> TF
+  SS & G & AO & RA & OT & BR & WB & DF & TF --> OUT([Reply to app])
+  classDef ai fill:#e9e6ff,stroke:#5e59e8,color:#1d2458
+  classDef fail fill:#fdecec,stroke:#c94b4b,color:#7a2e2e
+  class BQ,CC,CA ai
+  class DF,TF fail
+```
+
+The same workflow on the n8n canvas:
+
+![The workflow on the n8n canvas](docs/screens/n8n-flow.png)
+
 ---
 
 ## Test it in 10 minutes
