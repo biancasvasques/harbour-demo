@@ -228,3 +228,12 @@ input { font: inherit; }
 
 /* ---------- every button is a pill ---------- */
 button, .cta, .chip, .slot, .primary, .icon-btn, .seg button, .stars button { border-radius: 999px; }
+
+/* ---------- mascot ---------- */
+.mascot { width: 170px; height: auto; margin: 0 0 6px; filter: drop-shadow(0 14px 18px rgba(29, 36, 88, 0.18)); animation: float 4s ease-in-out infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .mascot { animation: none; } }
+.logo { background: #ffffff; overflow: hidden; }
+.logo img { width: 38px; height: 38px; object-fit: contain; }
+.avatar.ai { background: var(--accent-soft); overflow: hidden; }
+.avatar.ai img { width: 30px; height: 30px; object-fit: contain; }

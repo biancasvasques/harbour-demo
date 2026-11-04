@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { BOOKING_START_TEXT, QUICK_QUESTIONS } from '@/lib/quick';
-import { Anchor, Arrow, Building, Calendar, Check, Close, Send, Star, Video } from './icons';
+import { Arrow, Building, Calendar, Check, Close, Send, Star, Video } from './icons';
 
 type Message = {
   role: 'visitor' | 'agent' | 'staff' | 'system';
@@ -29,7 +29,7 @@ const time = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
 function Avatar({ role, name }: { role: Message['role']; name?: string | null }) {
-  if (role === 'agent') return <span className="avatar ai" aria-hidden><Anchor size={16} /></span>;
+  if (role === 'agent') return <span className="avatar ai" aria-hidden><img src="/mascot-head.webp" alt="" width={30} height={30} /></span>;
   if (role === 'staff') return <span className="avatar staff" aria-hidden>{(name ?? 'H').slice(0, 1).toUpperCase()}</span>;
   return null;
 }
@@ -309,7 +309,7 @@ export default function Chat() {
       <div className="chat">
         <header className="chat-head">
           <div className="brand">
-            <span className="logo" aria-hidden><Anchor size={22} /></span>
+            <span className="logo" aria-hidden><img src="/mascot-head.webp" alt="" width={38} height={38} /></span>
             <div>
               <strong>Harbour Study Abroad</strong>
               <span className="sub">
@@ -324,7 +324,7 @@ export default function Chat() {
         <main className="chat-body" aria-live="polite">
           {messages.length === 0 && (
             <div className="welcome reveal">
-              <span className="welcome-icon" aria-hidden><Anchor size={28} /></span>
+              <img className="mascot" src="/mascot.webp" alt="Harbour assistant, a friendly robot with a headset" width={170} height={155} />
               <p className="welcome-title">Hi! I&apos;m the Harbour assistant.</p>
               <p className="welcome-sub">Ask about courses, destinations and documents, or book a free 30-minute consultation.</p>
               <ul className="trust" aria-label="How this assistant works">
