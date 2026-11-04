@@ -165,7 +165,7 @@ The same company's back office. A supplier invoice comes in, the AI copies what 
 ## Run the tests
 
 ```bash
-node --test n8n/
+node --test n8n/nodes.test.mjs
 ```
 
 ```bash

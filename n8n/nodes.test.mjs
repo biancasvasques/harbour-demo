@@ -1,6 +1,6 @@
 // Runs the n8n Code node files outside n8n, with fake $input / $(), so the
 // logic that guards the agent is tested before it is imported.
-//   node --test n8n/
+//   node --test n8n/nodes.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
