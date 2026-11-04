@@ -1,10 +1,10 @@
 // n8n Code node "Build request" (Run Once for All Items).
 //
-// Receives the context the app sends (the agent never reads the database) and
-// builds the Claude request. The reply format is FIXED here, in code, not in
+// Only reached on the "claude" route. Receives the context the app sent (the
+// agent never reads the database) and builds the Claude request. The reply format is FIXED here, in code, not in
 // the editable instructions: editing the instructions in the panel can change
 // the tone, never the contract the code checks afterwards.
-const body = ($input.first().json || {}).body || {};
+const body = $input.first().json || {};
 
 function text(v, max) {
   return typeof v === 'string' ? v.slice(0, max) : '';

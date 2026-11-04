@@ -63,6 +63,8 @@ if (needsHuman && !reason) reason = guardrail ? `Guardrail: ${guardrail}` : 'The
 return [{
   json: {
     ok: true,
+    route: 'claude',
+    role: 'agent',
     reply,            // empty = the app uses the hand-over message from settings
     knew,
     fact_codes: unknown.length ? [] : cited,

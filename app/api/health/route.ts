@@ -30,9 +30,14 @@ export async function GET(req: Request) {
     )).rows;
     const started = Date.now();
     const result = await askAgent({
-      instructions: s.instructions,
+      kind: 'message',
+      conversation_id: '00000000-0000-0000-0000-000000000000',
       message: 'Which languages do your consultants speak?',
+      status: 'bot',
+      agent_enabled: true,
+      instructions: s.instructions,
       facts,
+      quick: [],
       history: [],
       simulate_failure: agent === 'fail',
     });

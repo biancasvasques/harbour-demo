@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { BOOKING_START_TEXT, QUICK_QUESTIONS } from '@/lib/quick';
 
 type Message = {
   role: 'visitor' | 'agent' | 'staff' | 'system';
@@ -250,9 +251,9 @@ export default function Chat() {
               <p className="welcome-title">Hi! I&apos;m the Harbour assistant.</p>
               <p className="welcome-sub">Ask me about courses, destinations and documents, or book a free 30-minute consultation.</p>
               <div className="chips">
-                <button type="button" className="chip strong" onClick={() => setBookingOpen(true)}>📅 Book a free consultation</button>
-                {['How long are English courses?', 'Which cities do you work with?', 'Do you charge for your service?'].map((q) => (
-                  <button key={q} type="button" className="chip" onClick={() => void sendText(q)}>{q}</button>
+                <button type="button" className="chip strong" onClick={() => void sendText(BOOKING_START_TEXT)}>📅 Book a free consultation</button>
+                {QUICK_QUESTIONS.map(({ question }) => (
+                  <button key={question} type="button" className="chip" onClick={() => void sendText(question)}>{question}</button>
                 ))}
               </div>
             </div>
@@ -302,7 +303,7 @@ export default function Chat() {
 
         <form className="chat-input" onSubmit={send}>
           {!booked && !bookingOpen && (
-            <button type="button" className="book-btn" onClick={() => setBookingOpen(true)} aria-label="Book a consultation" title="Book a consultation">📅</button>
+            <button type="button" className="book-btn" onClick={() => void sendText(BOOKING_START_TEXT)} disabled={sending} aria-label="Book a consultation" title="Book a consultation">📅</button>
           )}
           <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Type your message…"
             maxLength={1000} aria-label="Your message" disabled={sending} />

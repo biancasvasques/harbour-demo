@@ -1,38 +1,57 @@
 import { z } from 'zod';
 
-// What the n8n workflow answers. Anything else is treated as a failure.
+// The agent workflow (n8n) is the orchestrator: it decides the route and only
+// calls Claude when a free-text question needs it. Every route answers with
+// this one shape. Anything else is treated as a failure.
+export const ROUTES = ['silent', 'agent_off', 'ready_answer', 'claude', 'booking_offer', 'booking_done', 'booking_failed'] as const;
+
 const AgentOk = z.object({
   ok: z.literal(true),
-  reply: z.string(),
-  knew: z.boolean(),
-  fact_codes: z.array(z.string()),
-  needs_human: z.boolean(),
-  intent: z.enum(['question', 'book_consultation', 'talk_to_person', 'smalltalk']).optional().default('question'),
-  reason: z.string().optional().default(''),
-  guardrail: z.string().nullable().optional().default(null),
+  route: z.enum(ROUTES),
+  reply: z.string().nullable().default(null),
+  role: z.enum(['agent', 'system']).nullable().default(null),
+  fact_codes: z.array(z.string()).default([]),
+  knew: z.boolean().default(true),
+  needs_human: z.boolean().default(false),
+  intent: z.string().default('question'),
+  reason: z.string().default(''),
+  action: z.enum(['booking']).nullable().default(null),
+  guardrail: z.string().nullable().default(null),
 });
 const AgentFail = z.object({
   ok: z.literal(false),
-  error: z.enum(['ai_error', 'invalid_output']),
+  error: z.enum(['ai_error', 'invalid_output', 'tool_error']),
   detail: z.string(),
 });
 
 export type AgentAnswer = z.infer<typeof AgentOk>;
 export type AgentResult =
   | { ok: true; answer: AgentAnswer }
-  | { ok: false; kind: 'ai_error' | 'invalid_output' | 'workflow_unreachable'; detail: string };
+  | { ok: false; kind: 'ai_error' | 'invalid_output' | 'tool_error' | 'workflow_unreachable'; detail: string };
 
-export type AgentContext = {
-  instructions: string;
-  message: string;
-  facts: { code: string; title: string; content: string }[];
-  history: { role: string; content: string }[];
-  simulate_failure: boolean;
-};
+export type Fact = { code: string; title: string; content: string };
+export type AgentRequest =
+  | {
+      kind: 'message';
+      conversation_id: string;
+      message: string;
+      status: string;
+      agent_enabled: boolean;
+      instructions: string;
+      facts: Fact[];
+      quick: { question: string; code: string }[];
+      history: { role: string; content: string }[];
+      simulate_failure: boolean;
+    }
+  | {
+      kind: 'booking_confirm';
+      conversation_id: string;
+      booking: { slot: string; mode: 'online' | 'office'; name: string; email: string };
+    };
 
-// Calls the agent (n8n). Never throws: every failure comes back as a value, so
-// the caller always has a fallback path. The webhook URL is a secret (env only).
-export async function askAgent(ctx: AgentContext): Promise<AgentResult> {
+// Calls the workflow. Never throws: every failure comes back as a value, so the
+// caller always has a fallback path. The webhook URL is a secret (env only).
+export async function askAgent(req: AgentRequest): Promise<AgentResult> {
   const url = process.env.N8N_WEBHOOK_URL;
   if (!url) return { ok: false, kind: 'workflow_unreachable', detail: 'N8N_WEBHOOK_URL is not set' };
 
@@ -41,8 +60,8 @@ export async function askAgent(ctx: AgentContext): Promise<AgentResult> {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(ctx),
-      signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify(req),
+      signal: AbortSignal.timeout(35_000),
       cache: 'no-store',
     });
     if (!res.ok) return { ok: false, kind: 'workflow_unreachable', detail: `workflow answered HTTP ${res.status}` };

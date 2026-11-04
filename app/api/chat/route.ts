@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { askAgent } from '@/lib/agent';
+import { QUICK_QUESTIONS } from '@/lib/quick';
 import { isOpen, type BusinessHours } from '@/lib/hours';
 
 export const dynamic = 'force-dynamic';
@@ -10,8 +11,6 @@ export const maxDuration = 45;
 // Cost guard for a public demo.
 const PER_CONVERSATION = 20;
 const PER_DAY = 200;
-
-const AGENT_OFF_MESSAGE = 'Thanks for your message! Our online assistant is switched off right now, so a consultant will reply in this chat.';
 
 const Post = z.object({
   token: z.string().uuid().optional(),
@@ -115,49 +114,50 @@ export async function POST(req: Request) {
     );
 
   const open = isOpen(new Date(), s.timezone, s.business_hours);
+  const facts = (await db().query<{ code: string; title: string; content: string }>(
+    'select code, title, content from harbour.facts where approved order by code',
+  )).rows;
+
+  // The workflow decides the route (silent, agent off, ready answer without AI,
+  // Claude, booking). The app only saves what comes back.
+  const result = await askAgent({
+    kind: 'message',
+    conversation_id: conv.id,
+    message,
+    status: reopened,
+    agent_enabled: s.agent_enabled,
+    instructions: s.instructions,
+    facts,
+    quick: QUICK_QUESTIONS,
+    history,
+    simulate_failure: s.simulate_ai_failure,
+  });
+
   let replied = false;
-
-  if (reopened === 'human') {
-    // a person took over this conversation: the agent stays silent.
-    // ("needs_human" only flags it for the team; the agent keeps helping.)
-  } else if (!s.agent_enabled) {
-    await setStatus('needs_human', 'Agent switched off');
-    await say('system', AGENT_OFF_MESSAGE, { meta: { agent_off: true } });
-    replied = true;
-  } else {
-    const facts = (await db().query<{ code: string; title: string; content: string }>(
-      'select code, title, content from harbour.facts where approved order by code',
-    )).rows;
-    const result = await askAgent({
-      instructions: s.instructions,
-      message,
-      facts,
-      history,
-      simulate_failure: s.simulate_ai_failure,
-    });
-
-    if (result.ok) {
-      const a = result.answer;
-      const booking = a.intent === 'book_consultation';
-      const text = a.reply.trim() || (booking ? 'Sure! Pick a time that suits you just below.' : s.handoff_message);
-      await say('agent', text, {
+  if (result.ok) {
+    const a = result.answer;
+    // a reply blocked by the checks comes back empty: use the hand-over text from settings
+    const text = a.reply?.trim() || (a.route === 'claude' ? s.handoff_message : '');
+    if (text && a.role) {
+      await say(a.role, text, {
         fact_codes: a.fact_codes,
         meta: {
-          knew: a.knew, needs_human: a.needs_human, intent: a.intent, guardrail: a.guardrail, reason: a.reason,
-          ...(booking ? { action: 'booking' } : {}),
+          route: a.route, knew: a.knew, needs_human: a.needs_human, intent: a.intent,
+          guardrail: a.guardrail, reason: a.reason, ...(a.action ? { action: a.action } : {}),
         },
       });
-      // booking is handled by the form, not by a person
-      if (a.needs_human && !booking) await setStatus('needs_human', a.reason || 'Agent did not know');
-    } else {
-      // the AI failed: the visitor still gets an answer, the team gets an alert
-      await db().query(
-        'insert into harbour.agent_errors (conversation_id, kind, detail) values ($1, $2, $3)',
-        [conv.id, result.kind, result.detail.slice(0, 500)],
-      );
-      await setStatus('needs_human', `AI failure (${result.kind})`, true);
-      await say('system', s.fallback_message, { meta: { fallback: true, error: result.kind } });
+      replied = true;
     }
+    if (a.route === 'agent_off') await setStatus('needs_human', 'Agent switched off');
+    else if (a.needs_human) await setStatus('needs_human', a.reason || 'Agent did not know');
+  } else {
+    // the AI or a tool failed: the visitor still gets an answer, the team gets an alert
+    await db().query(
+      'insert into harbour.agent_errors (conversation_id, kind, detail) values ($1, $2, $3)',
+      [conv.id, result.kind, result.detail.slice(0, 500)],
+    );
+    await setStatus('needs_human', `AI failure (${result.kind})`, true);
+    await say('system', s.fallback_message, { meta: { fallback: true, error: result.kind } });
     replied = true;
   }
 
