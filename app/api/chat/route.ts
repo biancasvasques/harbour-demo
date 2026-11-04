@@ -10,7 +10,7 @@ export const maxDuration = 45;
 
 // Cost guard for a public demo.
 const PER_CONVERSATION = 20;
-const PER_DAY = 200;
+const PER_DAY = 50;
 
 const Post = z.object({
   token: z.string().uuid().optional(),

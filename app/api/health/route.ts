@@ -5,6 +5,8 @@ import { askAgent } from '@/lib/agent';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 45;
 
+const AGENT_CHECKS_PER_DAY = 10;
+
 // Public, read-only: counts only, never content.
 //   /api/health            database check
 //   /api/health?agent=1    + one fixed question through app -> n8n -> Claude (nothing saved)
@@ -23,6 +25,16 @@ export async function GET(req: Request) {
           (select array_agg(file order by file) from harbour.schema_migrations) as migrations`);
 
     if (agent !== '1' && agent !== 'fail') return NextResponse.json({ ok: true, database: rows[0] });
+
+    // the AI check costs money: at most 10 per day (Sydney), counted in the database
+    const used = (await db().query<{ n: number }>(
+      `select count(*)::int as n from harbour.health_checks
+        where created_at >= (date_trunc('day', now() at time zone 'Australia/Sydney') at time zone 'Australia/Sydney')`,
+    )).rows[0].n;
+    if (used >= AGENT_CHECKS_PER_DAY) {
+      return NextResponse.json({ ok: true, database: rows[0], agent_check: 'daily limit reached, try tomorrow' }, { status: 429 });
+    }
+    await db().query('insert into harbour.health_checks default values');
 
     const s = (await db().query<{ instructions: string }>('select instructions from harbour.settings where id = 1')).rows[0];
     const facts = (await db().query<{ code: string; title: string; content: string }>(
