@@ -28,7 +28,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Read request\" (Run Once for All Items).\n// Validates what the app sent and decides the ROUTE with plain rules (no AI).\n// The \"Router\" box right after this one branches on the route, so the\n// decisions are visible on the canvas.\n//   silent          a person took over: the agent does not answer\n//   agent_off       the agent is switched off in the panel\n//   confirm_booking the visitor confirmed the booking form\n//   booking         the visitor asked to book (keywords, no AI needed)\n//   ready_answer    a menu question with a ready, approved answer (no AI)\n//   claude          free text: the only route that calls Claude\nconst b = ($input.first().json || {}).body || {};\nconst text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');\nconst conversation_id = text(b.conversation_id, 64);\n\nif (b.kind === 'booking_confirm') {\n  const k = b.booking || {};\n  if (!conversation_id || !k.slot || !k.name || !k.email || !['online', 'office'].includes(k.mode)) {\n    throw new Error('invalid_input: booking fields missing');\n  }\n  return [{ json: { route: 'confirm_booking', conversation_id, booking: { slot: k.slot, mode: k.mode, name: text(k.name, 80), email: text(k.email, 120) } } }];\n}\n\nconst message = text(b.message, 2000).trim();\nif (!message) throw new Error('invalid_input: message is required');\n\nconst facts = Array.isArray(b.facts) ? b.facts : [];\nconst quick = Array.isArray(b.quick) ? b.quick : [];\nconst base = {\n  conversation_id,\n  message,\n  instructions: text(b.instructions, 20000),\n  facts,\n  history: Array.isArray(b.history) ? b.history.slice(-10) : [],\n  simulate_failure: b.simulate_failure === true,\n};\n\nlet route = 'claude';\nlet ready = null;\nconst norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();\nconst hit = quick.find((q) => norm(q.question) === norm(message));\n\nif (b.status === 'human') route = 'silent';\nelse if (b.agent_enabled === false) route = 'agent_off';\nelse if (/\\b(book|booking|schedule|appointment|agendar|agendamento|marcar|reservar)\\b/i.test(message)) route = 'booking';\nelse if (hit) {\n  const fact = facts.find((f) => f.code === hit.code);\n  if (fact) { route = 'ready_answer'; ready = { code: fact.code, content: fact.content }; }\n}\n\nreturn [{ json: { route, ready, ...base } }];\n"
+        "jsCode": "// n8n Code node \"Read request\" (Run Once for All Items).\n// Validates what the app sent and decides the ROUTE with plain rules (no AI).\n// The \"Router\" box right after this one branches on the route, so the\n// decisions are visible on the canvas.\n//   silent          a person took over: the agent does not answer\n//   agent_off       the agent is switched off in the panel\n//   confirm_booking the visitor confirmed the booking form\n//   goodbye         the visitor said goodbye: thanks + satisfaction survey\n//   booking         the visitor asked to book (keywords, no AI needed)\n//   ready_answer    a menu question with a ready, approved answer (no AI)\n//   claude          free text: the only route that calls Claude\nconst b = ($input.first().json || {}).body || {};\nconst text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');\nconst conversation_id = text(b.conversation_id, 64);\n\nif (b.kind === 'booking_confirm') {\n  const k = b.booking || {};\n  if (!conversation_id || !k.slot || !k.name || !k.email || !['online', 'office'].includes(k.mode)) {\n    throw new Error('invalid_input: booking fields missing');\n  }\n  return [{ json: { route: 'confirm_booking', conversation_id, booking: { slot: k.slot, mode: k.mode, name: text(k.name, 80), email: text(k.email, 120) } } }];\n}\n\nconst message = text(b.message, 2000).trim();\nif (!message) throw new Error('invalid_input: message is required');\n\nconst facts = Array.isArray(b.facts) ? b.facts : [];\nconst quick = Array.isArray(b.quick) ? b.quick : [];\nconst base = {\n  conversation_id,\n  message,\n  instructions: text(b.instructions, 20000),\n  facts,\n  history: Array.isArray(b.history) ? b.history.slice(-10) : [],\n  simulate_failure: b.simulate_failure === true,\n};\n\nlet route = 'claude';\nlet ready = null;\nconst norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();\nconst hit = quick.find((q) => norm(q.question) === norm(message));\n\nif (b.status === 'human') route = 'silent';\nelse if (b.agent_enabled === false) route = 'agent_off';\nelse if (message.length <= 80 && /(^|[^\\p{L}])(bye|goodbye|good bye|see you|see ya|tchau|adeus|até logo|ate logo|até mais|ate mais|adiós|adios|chau|hasta luego)(?=[^\\p{L}]|$)/iu.test(message)) route = 'goodbye';\nelse if (/\\b(book|booking|schedule|appointment|agendar|agendamento|marcar|reservar)\\b/i.test(message)) route = 'booking';\nelse if (hit) {\n  const fact = facts.find((f) => f.code === hit.code);\n  if (fact) { route = 'ready_answer'; ready = { code: fact.code, content: fact.content }; }\n}\n\nreturn [{ json: { route, ready, ...base } }];\n"
       }
     },
     {
@@ -79,6 +79,30 @@
                   {
                     "id": "r1",
                     "leftValue": "={{ $json.route }}",
+                    "rightValue": "goodbye",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Goodbye"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.route }}",
                     "rightValue": "agent_off",
                     "operator": {
                       "type": "string",
@@ -101,7 +125,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "r2",
+                    "id": "r3",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "ready_answer",
                     "operator": {
@@ -125,7 +149,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "r3",
+                    "id": "r4",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "booking",
                     "operator": {
@@ -149,7 +173,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "r4",
+                    "id": "r5",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "confirm_booking",
                     "operator": {
@@ -173,7 +197,7 @@
                 },
                 "conditions": [
                   {
-                    "id": "r5",
+                    "id": "r6",
                     "leftValue": "={{ $json.route }}",
                     "rightValue": "claude",
                     "operator": {
@@ -206,6 +230,19 @@
       }
     },
     {
+      "id": "n18",
+      "name": "Goodbye + survey",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        -120
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Goodbye + survey\". The visitor said goodbye: thank them and\n// open the satisfaction survey (1 to 5 stars + optional comment). Fixed text in\n// the visitor's language, no AI. This is the only reply that does not end with\n// a follow-up question.\nconst detectLang = (t) => {\n  const s = String(t || '').toLowerCase();\n  if (/(^|[^\\p{L}])(quero|agendar|marcar|horário|horario|você|voce|obrigad[oa]|olá|ola|oi|tchau|consulta|gostaria|reunião|reuniao|abaixo|curso|quanto|posso|não|nao|sim|bom dia|boa tarde|boa noite|até|ate)(?=[^\\p{L}]|$)/u.test(s)) return 'pt';\n  if (/(^|[^\\p{L}])(quiero|cita|hola|gracias|usted|puedo|adiós|adios|chau|hasta|cuánto|cuanto|necesito|buenos|buenas)(?=[^\\p{L}]|$)/u.test(s)) return 'es';\n  return 'en';\n};\nconst lang = detectLang($input.first().json.message);\nconst reply = {\n  en: 'Thank you so much for your time! Before you go, could you rate this conversation? It takes two seconds and helps us improve.',\n  pt: 'Muito obrigado pela sua disposição! Antes de ir, pode avaliar esta conversa? Leva dois segundos e nos ajuda a melhorar.',\n  es: '¡Muchas gracias por tu tiempo! Antes de irte, ¿puedes valorar esta conversación? Son dos segundos y nos ayuda a mejorar.',\n}[lang];\nreturn [{ json: { ok: true, route: 'goodbye', role: 'agent', reply, action: 'survey', intent: 'goodbye', knew: true } }];\n"
+      }
+    },
+    {
       "id": "n05",
       "name": "Agent off message",
       "type": "n8n-nodes-base.code",
@@ -228,7 +265,7 @@
         240
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Ready answer (no AI)\". A menu question: reply with the approved\n// fact exactly as written. Instant, free, and it can never be wrong.\nconst r = $input.first().json.ready;\nreturn [{ json: {\n  ok: true, route: 'ready_answer', role: 'agent', reply: r.content,\n  fact_codes: [r.code], knew: true, needs_human: false, intent: 'question',\n} }];\n"
+        "jsCode": "// n8n Code node \"Ready answer (no AI)\". A menu question: reply with the approved\n// fact exactly as written, then a fixed follow-up question (every answer ends\n// with a question, so the conversation never stops dead). Instant and free.\nconst r = $input.first().json.ready;\nreturn [{ json: {\n  ok: true, route: 'ready_answer', role: 'agent', reply: `${r.content}\\n\\nIs there anything else you would like to know?`,\n  fact_codes: [r.code], knew: true, needs_human: false, intent: 'question',\n} }];\n"
       }
     },
     {
@@ -268,7 +305,7 @@
         340
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Offer times\". After \"Check free times\" (the slots tool).\n// The reply opens the booking card in the chat; the times shown come from the\n// same tool, never from the AI.\nconst count = Number(($input.first().json || {}).count || 0);\nif (count > 0) {\n  return [{ json: {\n    ok: true, route: 'booking_offer', role: 'agent', action: 'booking', intent: 'book_consultation',\n    reply: `Happy to help! There are ${count} free times in the next few days. Pick the one that suits you below.`,\n  } }];\n}\nreturn [{ json: {\n  ok: true, route: 'booking_offer', role: 'agent', intent: 'book_consultation', needs_human: true,\n  reason: 'Wanted to book but no free times', reply: 'There are no free times in the next few days, so a consultant will contact you to find one.',\n} }];\n"
+        "jsCode": "// n8n Code node \"Offer times\". After \"Check free times\" (the slots tool).\n// The reply opens the booking card in the chat; the times shown come from the\n// same tool, never from the AI. Fixed text, in the visitor's language.\nconst count = Number(($input.first().json || {}).count || 0);\nconst msg = String(($('Read request').first().json || {}).message || '').toLowerCase();\nconst detectLang = (t) => {\n  const s = String(t || '').toLowerCase();\n  if (/(^|[^\\p{L}])(quero|agendar|marcar|horário|horario|você|voce|obrigad[oa]|olá|ola|oi|tchau|consulta|gostaria|reunião|reuniao|abaixo|curso|quanto|posso|não|nao|sim|bom dia|boa tarde|boa noite|até|ate)(?=[^\\p{L}]|$)/u.test(s)) return 'pt';\n  if (/(^|[^\\p{L}])(quiero|cita|hola|gracias|usted|puedo|adiós|adios|chau|hasta|cuánto|cuanto|necesito|buenos|buenas)(?=[^\\p{L}]|$)/u.test(s)) return 'es';\n  return 'en';\n};\nconst lang = detectLang(msg);\n\nconst TEXT = {\n  en: { some: (n) => `Happy to help! There are ${n} free times in the next few days. Which one suits you best? Pick it below.`,\n        none: 'There are no free times in the next few days, so a consultant will contact you to find one. Is there anything else I can help you with meanwhile?' },\n  pt: { some: (n) => `Com prazer! Temos ${n} horários livres nos próximos dias. Qual fica melhor para você? É só escolher logo abaixo.`,\n        none: 'Não há horários livres nos próximos dias, então um consultor vai entrar em contato para combinar. Posso ajudar com mais alguma coisa enquanto isso?' },\n  es: { some: (n) => `¡Con gusto! Hay ${n} horarios libres en los próximos días. ¿Cuál te queda mejor? Elígelo aquí abajo.`,\n        none: 'No hay horarios libres en los próximos días, así que un consultor te contactará para coordinar. ¿Puedo ayudarte con algo más mientras tanto?' },\n}[lang];\n\nif (count > 0) {\n  return [{ json: { ok: true, route: 'booking_offer', role: 'agent', action: 'booking', intent: 'book_consultation', reply: TEXT.some(count) } }];\n}\nreturn [{ json: {\n  ok: true, route: 'booking_offer', role: 'agent', intent: 'book_consultation', needs_human: true,\n  reason: 'Wanted to book but no free times', reply: TEXT.none,\n} }];\n"
       }
     },
     {
@@ -311,7 +348,7 @@
         460
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Booking result\". After \"Reserve slot\" (the booking tool).\nconst r = $input.first().json || {};\nif (r.ok) {\n  return [{ json: {\n    ok: true, route: 'booking_done', role: 'system',\n    reply: `✅ Consultation requested for ${r.when} (Sydney time), ${r.where}. Reference ${r.ref}. ` +\n           'A consultant will confirm by email. (This is a demo: no email is sent.)',\n  } }];\n}\nconst why = r.error === 'taken' || r.error === 'not_offered'\n  ? 'Sorry, that time was just taken. Please pick another one.'\n  : 'Sorry, we could not book that time. Please try again.';\nreturn [{ json: { ok: true, route: 'booking_failed', role: null, reply: why } }];\n"
+        "jsCode": "// n8n Code node \"Booking result\". After \"Reserve slot\" (the booking tool).\nconst r = $input.first().json || {};\nif (r.ok) {\n  return [{ json: {\n    ok: true, route: 'booking_done', role: 'system',\n    reply: `✅ Consultation requested for ${r.when} (Sydney time), ${r.where}. Reference ${r.ref}. ` +\n           'A consultant will confirm by email. (This is a demo: no email is sent.) Is there anything else I can help you with?',\n  } }];\n}\nconst why = r.error === 'taken' || r.error === 'not_offered'\n  ? 'Sorry, that time was just taken. Please pick another one.'\n  : 'Sorry, we could not book that time. Please try again.';\nreturn [{ json: { ok: true, route: 'booking_failed', role: null, reply: why } }];\n"
       }
     },
     {
@@ -337,7 +374,7 @@
         680
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Build request\" (Run Once for All Items).\n//\n// Only reached on the \"claude\" route. Receives the context the app sent (the\n// agent never reads the database) and builds the Claude request. The reply format is FIXED here, in code, not in\n// the editable instructions: editing the instructions in the panel can change\n// the tone, never the contract the code checks afterwards.\nconst body = $input.first().json || {};\n\nfunction text(v, max) {\n  return typeof v === 'string' ? v.slice(0, max) : '';\n}\n\nconst instructions = text(body.instructions, 20000);\nconst message = text(body.message, 2000).trim();\nconst facts = Array.isArray(body.facts) ? body.facts.slice(0, 200) : [];\nconst history = Array.isArray(body.history) ? body.history.slice(-10) : [];\n\nif (!instructions || !message) {\n  throw new Error('invalid_input: instructions and message are required');\n}\n\n// Only facts the app marked as approved arrive here. Each one has a short code\n// the model must cite; the next node checks every code against this list.\nconst approvedCodes = [];\nconst factLines = [];\nfor (const f of facts) {\n  const code = text(f && f.code, 10);\n  const content = text(f && f.content, 2000);\n  if (!/^F\\d{2,3}$/.test(code) || !content) continue;\n  approvedCodes.push(code);\n  factLines.push(`[${code}] ${text(f.title, 200)}: ${content}`);\n}\n\nconst ROLE = { visitor: 'Visitor', agent: 'Assistant', staff: 'Harbour staff' };\nconst transcript = history\n  .filter((m) => m && ROLE[m.role])\n  .map((m) => `${ROLE[m.role]}: ${text(m.content, 2000)}`)\n  .join('\\n');\n\nconst rules = [\n  '## Approved facts',\n  'These are the ONLY things you may state as true about Harbour Study Abroad.',\n  'Cite the code of every fact you use in fact_codes. If no fact answers the',\n  'question, set knew to false and do not guess. Greetings and small talk need',\n  'no fact.',\n  '',\n  factLines.join('\\n') || '(no approved facts)',\n].join('\\n');\n\n// The reply format, enforced by the API (structured outputs): the response is\n// always valid JSON matching this schema. (Forced tool_choice is rejected by\n// Claude Sonnet 5.5, so structured outputs is the supported way to get it.)\nconst replySchema = {\n  type: 'object',\n  properties: {\n    reply: { type: 'string', description: 'The message shown to the visitor.' },\n    knew: {\n      type: 'boolean',\n      description: 'true only if the approved facts answer the question (or it is a greeting). false if a person must answer.',\n    },\n    fact_codes: {\n      type: 'array',\n      items: { type: 'string' },\n      description: 'Codes of the approved facts used, e.g. [\"F07\"]. Empty for greetings.',\n    },\n    needs_human: {\n      type: 'boolean',\n      description: 'true if a consultant must follow up (the facts do not answer, a quote, a complaint). Booking a consultation is NOT a reason.',\n    },\n    intent: {\n      type: 'string',\n      enum: ['question', 'book_consultation', 'talk_to_person', 'smalltalk'],\n      description: 'book_consultation when the visitor wants to book, schedule or meet a consultant (the booking form then opens).',\n    },\n    reason: { type: 'string', description: 'Short internal note for the team when needs_human is true, otherwise empty.' },\n  },\n  required: ['reply', 'knew', 'fact_codes', 'needs_human', 'intent', 'reason'],\n  additionalProperties: false,\n};\n\nconst payload = {\n  // \"Simulate AI failure\" in the panel sends a model that does not exist, so the\n  // demo exercises the REAL error path of the workflow, not a fake one.\n  model: body.simulate_failure === true ? 'harbour-simulated-failure' : 'claude-sonnet-5-5',\n  max_tokens: 4096,  // room for adaptive thinking + the short JSON reply\n  system: [\n    { type: 'text', text: instructions, cache_control: { type: 'ephemeral' } },\n    { type: 'text', text: rules, cache_control: { type: 'ephemeral' } },\n  ],\n  messages: [\n    {\n      role: 'user',\n      content:\n        (transcript ? `Conversation so far:\\n${transcript}\\n\\n` : '') +\n        `New message from the visitor:\\n<visitor_message>\\n${message}\\n</visitor_message>`,\n    },\n  ],\n  // low effort: short support replies from a fixed fact list, latency matters\n  output_config: { effort: 'low', format: { type: 'json_schema', schema: replySchema } },\n};\n\nreturn [{ json: { payload, approved_codes: approvedCodes } }];\n"
+        "jsCode": "// n8n Code node \"Build request\" (Run Once for All Items).\n//\n// Only reached on the \"claude\" route. Receives the context the app sent (the\n// agent never reads the database) and builds the Claude request. The reply format is FIXED here, in code, not in\n// the editable instructions: editing the instructions in the panel can change\n// the tone, never the contract the code checks afterwards.\nconst body = $input.first().json || {};\n\nfunction text(v, max) {\n  return typeof v === 'string' ? v.slice(0, max) : '';\n}\n\nconst instructions = text(body.instructions, 20000);\nconst message = text(body.message, 2000).trim();\nconst facts = Array.isArray(body.facts) ? body.facts.slice(0, 200) : [];\nconst history = Array.isArray(body.history) ? body.history.slice(-10) : [];\n\nif (!instructions || !message) {\n  throw new Error('invalid_input: instructions and message are required');\n}\n\n// Only facts the app marked as approved arrive here. Each one has a short code\n// the model must cite; the next node checks every code against this list.\nconst approvedCodes = [];\nconst factLines = [];\nfor (const f of facts) {\n  const code = text(f && f.code, 10);\n  const content = text(f && f.content, 2000);\n  if (!/^F\\d{2,3}$/.test(code) || !content) continue;\n  approvedCodes.push(code);\n  factLines.push(`[${code}] ${text(f.title, 200)}: ${content}`);\n}\n\nconst ROLE = { visitor: 'Visitor', agent: 'Assistant', staff: 'Harbour staff' };\nconst transcript = history\n  .filter((m) => m && ROLE[m.role])\n  .map((m) => `${ROLE[m.role]}: ${text(m.content, 2000)}`)\n  .join('\\n');\n\nconst rules = [\n  '## Approved facts',\n  'These are the ONLY things you may state as true about Harbour Study Abroad.',\n  'Cite the code of every fact you use in fact_codes. If no fact answers the',\n  'question, set knew to false and do not guess. Greetings and small talk need',\n  'no fact.',\n  '',\n  factLines.join('\\n') || '(no approved facts)',\n].join('\\n');\n\n// The reply format, enforced by the API (structured outputs): the response is\n// always valid JSON matching this schema. (Forced tool_choice is rejected by\n// Claude Sonnet 5.5, so structured outputs is the supported way to get it.)\nconst replySchema = {\n  type: 'object',\n  properties: {\n    reply: { type: 'string', description: 'The message shown to the visitor.' },\n    knew: {\n      type: 'boolean',\n      description: 'true only if the approved facts answer the question (or it is a greeting). false if a person must answer.',\n    },\n    fact_codes: {\n      type: 'array',\n      items: { type: 'string' },\n      description: 'Codes of the approved facts used, e.g. [\"F07\"]. Empty for greetings.',\n    },\n    needs_human: {\n      type: 'boolean',\n      description: 'true if a consultant must follow up (the facts do not answer, a quote, a complaint). Booking a consultation is NOT a reason.',\n    },\n    intent: {\n      type: 'string',\n      enum: ['question', 'book_consultation', 'talk_to_person', 'smalltalk'],\n      description: 'book_consultation when the visitor wants to book, schedule or meet a consultant (the booking form then opens).',\n    },\n    reason: { type: 'string', description: 'Short internal note for the team when needs_human is true, otherwise empty.' },\n  },\n  required: ['reply', 'knew', 'fact_codes', 'needs_human', 'intent', 'reason'],\n  additionalProperties: false,\n};\n\nconst payload = {\n  // \"Simulate AI failure\" in the panel sends a model that does not exist, so the\n  // demo exercises the REAL error path of the workflow, not a fake one.\n  model: body.simulate_failure === true ? 'harbour-simulated-failure' : 'claude-sonnet-5-5',\n  max_tokens: 4096,  // room for adaptive thinking + the short JSON reply\n  system: [\n    { type: 'text', text: instructions, cache_control: { type: 'ephemeral' } },\n    { type: 'text', text: rules, cache_control: { type: 'ephemeral' } },\n  ],\n  messages: [\n    {\n      role: 'user',\n      content:\n        (transcript ? `Conversation so far:\\n${transcript}\\n\\n` : '') +\n        `New message from the visitor:\\n<visitor_message>\\n${message}\\n</visitor_message>`,\n    },\n  ],\n  // low effort: short support replies from a fixed fact list, latency matters\n  output_config: { effort: 'low', format: { type: 'json_schema', schema: replySchema } },\n};\n\nreturn [{ json: { payload, approved_codes: approvedCodes, message } }];\n"
       }
     },
     {
@@ -388,7 +425,7 @@
         660
       ],
       "parameters": {
-        "jsCode": "// n8n Code node \"Check answer\" (Run Once for All Items).\n//\n// The model's word is not trusted. This node checks the reply in code before it\n// can reach the visitor:\n//   1. the reply must come in the fixed format;\n//   2. every fact it cites must be one of the approved facts sent in;\n//   3. a deterministic guard blocks prices, money amounts and exact dates,\n//      whatever the instructions say.\n// Anything that fails becomes a hand-over to a person, never a guess.\nconst resp = $input.first().json || {};\nconst approved = new Set($('Build request').first().json.approved_codes || []);\n\n// Structured output: the answer is the JSON in the text block.\nlet a = null;\ntry {\n  const txt = (resp.content || []).filter((b) => b && b.type === 'text').map((b) => b.text).join('');\n  a = JSON.parse(txt);\n} catch (e) {\n  a = null;\n}\nif (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') a = null;\n\nif (!a || typeof a.reply !== 'string' || !a.reply.trim() || typeof a.knew !== 'boolean') {\n  return [{ json: { ok: false, error: 'invalid_output', detail: 'The model did not return the expected format.' } }];\n}\n\nconst cited = Array.isArray(a.fact_codes) ? a.fact_codes.map(String) : [];\nconst unknown = cited.filter((c) => !approved.has(c));\n\nfunction guard(t) {\n  const rules = [\n    [/(A\\$|AU\\$|NZ\\$|US\\$|R\\$|\\$|€|£)\\s?\\d/i, 'price'],\n    [/\\b(AUD|NZD|USD|BRL|EUR|GBP|CAD)\\s?\\d/i, 'price'],\n    [/\\d[\\d,.]*\\s?(dollars?|reais|euros?|pounds?)\\b/i, 'price'],\n    [/\\b\\d{1,3}\\s?%\\s?(off|discount|scholarship)/i, 'discount'],\n    [/\\b\\d{1,2}\\/\\d{1,2}(\\/\\d{2,4})?\\b/, 'exact date'],\n  ];\n  for (const [re, why] of rules) if (re.test(t)) return why;\n  return null;\n}\n\nconst blocked = guard(a.reply);\nlet reply = a.reply.trim();\nlet knew = a.knew;\nlet needsHuman = a.needs_human === true || a.knew === false;\nlet reason = typeof a.reason === 'string' ? a.reason.slice(0, 300) : '';\nlet guardrail = null;\n\nif (unknown.length) {\n  // cited something that is not an approved fact: do not send it\n  guardrail = `unapproved fact cited: ${unknown.join(', ')}`;\n  knew = false;\n  needsHuman = true;\n  reply = '';\n} else if (blocked) {\n  guardrail = blocked;\n  needsHuman = true;\n  reply = 'I can not share prices, discounts or exact dates here, so a consultant will send you the right details in this chat.';\n}\n\nif (needsHuman && !reason) reason = guardrail ? `Guardrail: ${guardrail}` : 'The approved facts do not answer this question.';\n\nreturn [{\n  json: {\n    ok: true,\n    route: 'claude',\n    role: 'agent',\n    reply,            // empty = the app uses the hand-over message from settings\n    knew,\n    fact_codes: unknown.length ? [] : cited,\n    needs_human: needsHuman,\n    intent: ['question', 'book_consultation', 'talk_to_person', 'smalltalk'].includes(a.intent) ? a.intent : 'question',\n    reason,\n    guardrail,\n    usage: resp.usage || null,\n  },\n}];\n"
+        "jsCode": "// n8n Code node \"Check answer\" (Run Once for All Items).\n//\n// The model's word is not trusted. This node checks the reply in code before it\n// can reach the visitor:\n//   1. the reply must come in the fixed format;\n//   2. every fact it cites must be one of the approved facts sent in;\n//   3. a deterministic guard blocks prices, money amounts and exact dates,\n//      whatever the instructions say.\n// Anything that fails becomes a hand-over to a person, never a guess.\nconst resp = $input.first().json || {};\nconst approved = new Set($('Build request').first().json.approved_codes || []);\n\n// Structured output: the answer is the JSON in the text block.\nlet a = null;\ntry {\n  const txt = (resp.content || []).filter((b) => b && b.type === 'text').map((b) => b.text).join('');\n  a = JSON.parse(txt);\n} catch (e) {\n  a = null;\n}\nif (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') a = null;\n\nif (!a || typeof a.reply !== 'string' || !a.reply.trim() || typeof a.knew !== 'boolean') {\n  return [{ json: { ok: false, error: 'invalid_output', detail: 'The model did not return the expected format.' } }];\n}\n\nconst cited = Array.isArray(a.fact_codes) ? a.fact_codes.map(String) : [];\nconst unknown = cited.filter((c) => !approved.has(c));\n\nfunction guard(t) {\n  const rules = [\n    [/(A\\$|AU\\$|NZ\\$|US\\$|R\\$|\\$|€|£)\\s?\\d/i, 'price'],\n    [/\\b(AUD|NZD|USD|BRL|EUR|GBP|CAD)\\s?\\d/i, 'price'],\n    [/\\d[\\d,.]*\\s?(dollars?|reais|euros?|pounds?)\\b/i, 'price'],\n    [/\\b\\d{1,3}\\s?%\\s?(off|discount|scholarship)/i, 'discount'],\n    [/\\b\\d{1,2}\\/\\d{1,2}(\\/\\d{2,4})?\\b/, 'exact date'],\n  ];\n  for (const [re, why] of rules) if (re.test(t)) return why;\n  return null;\n}\n\nconst blocked = guard(a.reply);\nlet reply = a.reply.trim();\nlet knew = a.knew;\nlet needsHuman = a.needs_human === true || a.knew === false;\nlet reason = typeof a.reason === 'string' ? a.reason.slice(0, 300) : '';\nlet guardrail = null;\n\nif (unknown.length) {\n  // cited something that is not an approved fact: do not send it\n  guardrail = `unapproved fact cited: ${unknown.join(', ')}`;\n  knew = false;\n  needsHuman = true;\n  reply = '';\n} else if (blocked) {\n  guardrail = blocked;\n  needsHuman = true;\n  reply = 'I can not share prices, discounts or exact dates here, so a consultant will send you the right details in this chat.';\n}\n\n// Every answer ends with a question, so the conversation never stops dead.\n// The instructions ask for it; this makes sure of it, in the visitor's language.\nconst detectLang = (t) => {\n  const s = String(t || '').toLowerCase();\n  if (/(^|[^\\p{L}])(quero|agendar|marcar|horário|horario|você|voce|obrigad[oa]|olá|ola|oi|tchau|consulta|gostaria|reunião|reuniao|abaixo|curso|quanto|posso|não|nao|sim|bom dia|boa tarde|boa noite|até|ate)(?=[^\\p{L}]|$)/u.test(s)) return 'pt';\n  if (/(^|[^\\p{L}])(quiero|cita|hola|gracias|usted|puedo|adiós|adios|chau|hasta|cuánto|cuanto|necesito|buenos|buenas)(?=[^\\p{L}]|$)/u.test(s)) return 'es';\n  return 'en';\n};\nconst FOLLOW_UP = {\n  en: 'Is there anything else I can help you with?',\n  pt: 'Posso ajudar com mais alguma coisa?',\n  es: '¿Puedo ayudarte con algo más?',\n};\nlet followUpAdded = false;\nif (reply && !/[?？]\\s*$/.test(reply)) {\n  reply = `${reply}\\n\\n${FOLLOW_UP[detectLang(`${reply} ${$('Build request').first().json.message || ''}`)]}`;\n  followUpAdded = true;\n}\n\nif (needsHuman && !reason) reason = guardrail ? `Guardrail: ${guardrail}` : 'The approved facts do not answer this question.';\n\nreturn [{\n  json: {\n    ok: true,\n    route: 'claude',\n    role: 'agent',\n    reply,            // empty = the app uses the hand-over message from settings\n    knew,\n    fact_codes: unknown.length ? [] : cited,\n    needs_human: needsHuman,\n    intent: ['question', 'book_consultation', 'talk_to_person', 'smalltalk'].includes(a.intent) ? a.intent : 'question',\n    reason,\n    guardrail,\n    follow_up_added: followUpAdded,\n    usage: resp.usage || null,\n  },\n}];\n"
       }
     },
     {
@@ -489,6 +526,13 @@
         ],
         [
           {
+            "node": "Goodbye + survey",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Agent off message",
             "type": "main",
             "index": 0
@@ -525,6 +569,17 @@
       ]
     },
     "Stay silent": {
+      "main": [
+        [
+          {
+            "node": "Reply to app",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Goodbye + survey": {
       "main": [
         [
           {
