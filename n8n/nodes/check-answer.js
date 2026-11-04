@@ -58,6 +58,25 @@ if (unknown.length) {
   reply = 'I can not share prices, discounts or exact dates here, so a consultant will send you the right details in this chat.';
 }
 
+// Every answer ends with a question, so the conversation never stops dead.
+// The instructions ask for it; this makes sure of it, in the visitor's language.
+const detectLang = (t) => {
+  const s = String(t || '').toLowerCase();
+  if (/(^|[^\p{L}])(quero|agendar|marcar|horário|horario|você|voce|obrigad[oa]|olá|ola|oi|tchau|consulta|gostaria|reunião|reuniao|abaixo|curso|quanto|posso|não|nao|sim|bom dia|boa tarde|boa noite|até|ate)(?=[^\p{L}]|$)/u.test(s)) return 'pt';
+  if (/(^|[^\p{L}])(quiero|cita|hola|gracias|usted|puedo|adiós|adios|chau|hasta|cuánto|cuanto|necesito|buenos|buenas)(?=[^\p{L}]|$)/u.test(s)) return 'es';
+  return 'en';
+};
+const FOLLOW_UP = {
+  en: 'Is there anything else I can help you with?',
+  pt: 'Posso ajudar com mais alguma coisa?',
+  es: '¿Puedo ayudarte con algo más?',
+};
+let followUpAdded = false;
+if (reply && !/[?？]\s*$/.test(reply)) {
+  reply = `${reply}\n\n${FOLLOW_UP[detectLang(`${reply} ${$('Build request').first().json.message || ''}`)]}`;
+  followUpAdded = true;
+}
+
 if (needsHuman && !reason) reason = guardrail ? `Guardrail: ${guardrail}` : 'The approved facts do not answer this question.';
 
 return [{
@@ -72,6 +91,7 @@ return [{
     intent: ['question', 'book_consultation', 'talk_to_person', 'smalltalk'].includes(a.intent) ? a.intent : 'question',
     reason,
     guardrail,
+    follow_up_added: followUpAdded,
     usage: resp.usage || null,
   },
 }];

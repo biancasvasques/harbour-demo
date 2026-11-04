@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { BOOKING_START_TEXT, QUICK_QUESTIONS } from '@/lib/quick';
+import { Anchor, Arrow, Building, Calendar, Check, Close, Send, Star, Video } from './icons';
 
 type Message = {
   role: 'visitor' | 'agent' | 'staff' | 'system';
@@ -28,7 +29,7 @@ const time = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
 function Avatar({ role, name }: { role: Message['role']; name?: string | null }) {
-  if (role === 'agent') return <span className="avatar ai" aria-hidden>⚓</span>;
+  if (role === 'agent') return <span className="avatar ai" aria-hidden><Anchor size={16} /></span>;
   if (role === 'staff') return <span className="avatar staff" aria-hidden>{(name ?? 'H').slice(0, 1).toUpperCase()}</span>;
   return null;
 }
@@ -93,7 +94,7 @@ function BookingCard({ token, onBooked, onClose }: {
           <strong>Book a free consultation</strong>
           <span>30 minutes · Sydney time</span>
         </div>
-        <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>✕</button>
+        <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Close size={14} /></button>
       </div>
 
       {!slots && <div className="skeleton" />}
@@ -116,9 +117,9 @@ function BookingCard({ token, onBooked, onClose }: {
 
           <div className="seg small" role="radiogroup" aria-label="Where">
             <button type="button" role="radio" aria-checked={mode === 'online'} className={mode === 'online' ? 'on' : ''}
-              onClick={() => setMode('online')}>💻 Online</button>
+              onClick={() => setMode('online')}><Video size={15} /> Online</button>
             <button type="button" role="radio" aria-checked={mode === 'office'} className={mode === 'office' ? 'on' : ''}
-              onClick={() => setMode('office')}>🏢 At the office</button>
+              onClick={() => setMode('office')}><Building size={15} /> At the office</button>
           </div>
 
           {slot && (
@@ -139,6 +140,75 @@ function BookingCard({ token, onBooked, onClose }: {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Satisfaction survey: opened by the "Goodbye" route of the workflow.
+// ---------------------------------------------------------------------------
+const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'];
+
+function SurveyCard({ token, rating, onRated }: { token: string | null; rating: number | null; onRated: (r: number) => void }) {
+  const [hover, setHover] = useState(0);
+  const [picked, setPicked] = useState(0);
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (rating) {
+    return (
+      <div className="card survey done">
+        <div className="stars static" aria-label={`You rated ${rating} out of 5`}>
+          {[1, 2, 3, 4, 5].map((n) => <Star key={n} size={20} filled={n <= rating} />)}
+        </div>
+        <p className="survey-title">Thank you for your feedback!</p>
+        <p className="survey-sub">You can close this window or start a new chat any time.</p>
+      </div>
+    );
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!picked || !token || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/survey', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, rating: picked, comment: comment.trim() || undefined }),
+      });
+      if (!res.ok) throw new Error();
+      onRated(picked);
+    } catch {
+      setError('Could not send your rating. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const shown = hover || picked;
+  return (
+    <form className="card survey" onSubmit={submit}>
+      <p className="survey-title">How was this conversation?</p>
+      <div className="stars" role="radiogroup" aria-label="Rating from 1 to 5" onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" role="radio" aria-checked={picked === n} aria-label={`${n} star${n > 1 ? 's' : ''}`}
+            className={n <= shown ? 'on' : ''} onMouseEnter={() => setHover(n)} onClick={() => setPicked(n)}>
+            <Star filled={n <= shown} />
+          </button>
+        ))}
+      </div>
+      <p className="survey-sub" aria-live="polite">{shown ? RATING_LABELS[shown] : 'Tap a star to rate'}</p>
+      {picked > 0 && (
+        <>
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={500} rows={2}
+            placeholder="Anything we could do better? (optional)" aria-label="Comment (optional)" />
+          {error && <p className="field-error" role="alert">{error}</p>}
+          <button type="submit" className="cta" disabled={busy}>{busy ? 'Sending…' : 'Send rating'}</button>
+        </>
+      )}
+    </form>
+  );
+}
+
 export default function Chat() {
   const [token, setToken] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -148,15 +218,17 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [rating, setRating] = useState<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (t: string) => {
     try {
       const res = await fetch(`/api/chat?token=${encodeURIComponent(t)}`, { cache: 'no-store' });
-      const data = (await res.json()) as { status?: string; visitor_name?: string | null; messages: Message[] };
+      const data = (await res.json()) as { status?: string; visitor_name?: string | null; rating?: number | null; messages: Message[] };
       setMessages(data.messages);
       if (data.status) setStatus(data.status);
       setVisitorName(data.visitor_name ?? null);
+      setRating(data.rating ?? null);
     } catch { /* next poll retries */ }
   }, []);
 
@@ -173,9 +245,13 @@ export default function Chat() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, sending, bookingOpen]);
+  }, [messages, sending, bookingOpen, rating]);
 
   const booked = messages.some((m) => m.role === 'system' && m.content.startsWith('✅'));
+  // the survey shows when the latest thing the assistant did was the goodbye
+  const surveyAt = messages.map((m) => m.action).lastIndexOf('survey');
+  const lastVisitorAt = messages.map((m) => m.role).lastIndexOf('visitor');
+  const showSurvey = surveyAt > -1 && surveyAt > lastVisitorAt;
 
   async function sendText(text: string) {
     if (!text || sending) return;
@@ -223,6 +299,7 @@ export default function Chat() {
     setVisitorName(null);
     setError(null);
     setBookingOpen(false);
+    setRating(null);
   }
 
   const human = status === 'human';
@@ -232,12 +309,12 @@ export default function Chat() {
       <div className="chat">
         <header className="chat-head">
           <div className="brand">
-            <span className="logo" aria-hidden>⚓</span>
+            <span className="logo" aria-hidden><Anchor size={22} /></span>
             <div>
               <strong>Harbour Study Abroad</strong>
               <span className="sub">
                 <i className={`dot ${human ? 'staff' : ''}`} />
-                {human ? 'You are chatting with our team' : 'AI assistant · answers only from approved information'}
+                {human ? 'You are chatting with our team' : 'AI assistant · online now'}
               </span>
             </div>
           </div>
@@ -247,13 +324,22 @@ export default function Chat() {
         <main className="chat-body" aria-live="polite">
           {messages.length === 0 && (
             <div className="welcome reveal">
-              <span className="welcome-icon" aria-hidden>⚓</span>
+              <span className="welcome-icon" aria-hidden><Anchor size={28} /></span>
               <p className="welcome-title">Hi! I&apos;m the Harbour assistant.</p>
-              <p className="welcome-sub">Ask me about courses, destinations and documents, or book a free 30-minute consultation.</p>
+              <p className="welcome-sub">Ask about courses, destinations and documents, or book a free 30-minute consultation.</p>
+              <ul className="trust" aria-label="How this assistant works">
+                <li><Check /> Approved answers only</li>
+                <li><Check /> A real person when needed</li>
+              </ul>
+              <button type="button" className="cta" onClick={() => void sendText(BOOKING_START_TEXT)}>
+                <Calendar /> Book a free consultation
+              </button>
+              <p className="chips-label">Or ask a quick question</p>
               <div className="chips">
-                <button type="button" className="chip strong" onClick={() => void sendText(BOOKING_START_TEXT)}>📅 Book a free consultation</button>
                 {QUICK_QUESTIONS.map(({ question }) => (
-                  <button key={question} type="button" className="chip" onClick={() => void sendText(question)}>{question}</button>
+                  <button key={question} type="button" className="chip" onClick={() => void sendText(question)}>
+                    <span>{question}</span><Arrow />
+                  </button>
                 ))}
               </div>
             </div>
@@ -296,18 +382,23 @@ export default function Chat() {
               <BookingCard token={token} onBooked={(t) => void onBooked(t)} onClose={() => setBookingOpen(false)} />
             </div>
           )}
+          {showSurvey && !sending && (
+            <div className="reveal">
+              <SurveyCard token={token} rating={rating} onRated={setRating} />
+            </div>
+          )}
           <div ref={endRef} />
         </main>
 
         {error && <div className="error" role="alert">{error}</div>}
 
         <form className="chat-input" onSubmit={send}>
-          {!booked && !bookingOpen && (
-            <button type="button" className="book-btn" onClick={() => void sendText(BOOKING_START_TEXT)} disabled={sending} aria-label="Book a consultation" title="Book a consultation">📅</button>
+          {messages.length > 0 && !booked && !bookingOpen && (
+            <button type="button" className="book-btn" onClick={() => void sendText(BOOKING_START_TEXT)} disabled={sending} aria-label="Book a consultation" title="Book a consultation"><Calendar /></button>
           )}
           <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Type your message…"
             maxLength={1000} aria-label="Your message" disabled={sending} />
-          <button type="submit" className="send" disabled={sending || !draft.trim()} aria-label="Send">➤</button>
+          <button type="submit" className="send" disabled={sending || !draft.trim()} aria-label="Send"><Send /></button>
         </form>
         <p className="disclaimer">Demo with an invented company · please don&apos;t share personal data</p>
       </div>

@@ -4,7 +4,7 @@ if (r.ok) {
   return [{ json: {
     ok: true, route: 'booking_done', role: 'system',
     reply: `✅ Consultation requested for ${r.when} (Sydney time), ${r.where}. Reference ${r.ref}. ` +
-           'A consultant will confirm by email. (This is a demo: no email is sent.)',
+           'A consultant will confirm by email. (This is a demo: no email is sent.) Is there anything else I can help you with?',
   } }];
 }
 const why = r.error === 'taken' || r.error === 'not_offered'

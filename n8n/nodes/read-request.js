@@ -5,6 +5,7 @@
 //   silent          a person took over: the agent does not answer
 //   agent_off       the agent is switched off in the panel
 //   confirm_booking the visitor confirmed the booking form
+//   goodbye         the visitor said goodbye: thanks + satisfaction survey
 //   booking         the visitor asked to book (keywords, no AI needed)
 //   ready_answer    a menu question with a ready, approved answer (no AI)
 //   claude          free text: the only route that calls Claude
@@ -41,6 +42,7 @@ const hit = quick.find((q) => norm(q.question) === norm(message));
 
 if (b.status === 'human') route = 'silent';
 else if (b.agent_enabled === false) route = 'agent_off';
+else if (message.length <= 80 && /(^|[^\p{L}])(bye|goodbye|good bye|see you|see ya|tchau|adeus|até logo|ate logo|até mais|ate mais|adiós|adios|chau|hasta luego)(?=[^\p{L}]|$)/iu.test(message)) route = 'goodbye';
 else if (/\b(book|booking|schedule|appointment|agendar|agendamento|marcar|reservar)\b/i.test(message)) route = 'booking';
 else if (hit) {
   const fact = facts.find((f) => f.code === hit.code);

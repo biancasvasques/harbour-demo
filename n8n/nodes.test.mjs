@@ -130,7 +130,7 @@ test('router: a menu question gets the ready answer, without AI', () => {
   assert.equal(out.route, 'ready_answer');
   assert.equal(out.ready.code, 'F07');
   const ans = run('ready-answer.js', out);
-  assert.equal(ans.reply, 'English courses start from 4 weeks.');
+  assert.ok(ans.reply.startsWith('English courses start from 4 weeks.\n\n'));
   assert.deepEqual(ans.fact_codes, ['F07']);
 });
 test('router: free text goes to Claude', () => {
@@ -162,4 +162,37 @@ test('booking result: confirmation with reference, or a clear "taken" message', 
   const taken = run('booking-result.js', { ok: false, error: 'taken' });
   assert.equal(taken.route, 'booking_failed');
   assert.match(taken.reply, /just taken/);
+});
+
+// --- follow-up question and goodbye (demo review, Nov) ---
+const readReq = (message, extra = {}) => run('read-request.js', { body: { message, status: 'bot', agent_enabled: true, instructions: 'x', facts: [], quick: [], ...extra } });
+
+test('goodbye: tchau / bye / adiós take the goodbye route, ordinary text does not', () => {
+  for (const m of ['tchau', 'Obrigada, tchau!', 'bye', 'Thanks, goodbye', 'adiós', 'até logo']) assert.equal(readReq(m).route, 'goodbye', m);
+  for (const m of ['How long are courses?', 'byebye-free question about Bayern', 'I want to book']) assert.notEqual(readReq(m).route, 'goodbye', m);
+  assert.equal(readReq('tchau', { status: 'human' }).route, 'silent');
+});
+
+test('goodbye: thanks in the visitor language and opens the survey, no question needed', () => {
+  const pt = run('goodbye.js', { message: 'obrigada, tchau' });
+  assert.equal(pt.action, 'survey');
+  assert.match(pt.reply, /Muito obrigado pela sua disposição/);
+  assert.match(run('goodbye.js', { message: 'bye' }).reply, /^Thank you/);
+  assert.match(run('goodbye.js', { message: 'adiós' }).reply, /Muchas gracias/);
+});
+
+test('check: a reply without a question gets one, in the visitor language', () => {
+  const en = run('check-answer.js', toolReply({ reply: 'English courses start from 4 weeks.', knew: true, fact_codes: ['F07'], needs_human: false, intent: 'question' }), { 'Build request': { ...built, message: 'How long?' } });
+  assert.match(en.reply, /4 weeks\.\n\nIs there anything else I can help you with\?$/);
+  assert.equal(en.follow_up_added, true);
+  const pt = run('check-answer.js', toolReply({ reply: 'Os cursos começam com 4 semanas.', knew: true, fact_codes: ['F07'], needs_human: false, intent: 'question' }), { 'Build request': { ...built, message: 'quanto tempo dura o curso?' } });
+  assert.match(pt.reply, /Posso ajudar com mais alguma coisa\?$/);
+  const already = run('check-answer.js', toolReply({ reply: 'They start from 4 weeks. Which city interests you?', knew: true, fact_codes: ['F07'], needs_human: false, intent: 'question' }), { 'Build request': built });
+  assert.equal(already.follow_up_added, false);
+});
+
+test('ready answer, offer and booking confirmation end with a question', () => {
+  assert.match(run('ready-answer.js', { ready: { code: 'F07', content: 'From 4 weeks.' } }).reply, /\?$/);
+  assert.match(run('offer-times.js', { count: 5 }, { 'Read request': { message: 'quero agendar' } }).reply, /Qual fica melhor/);
+  assert.match(run('booking-result.js', { ok: true, when: 'Mon 10am', where: 'online', ref: 'HB-1' }).reply, /\?$/);
 });

@@ -3,7 +3,7 @@ import { z } from 'zod';
 // The agent workflow (n8n) is the orchestrator: it decides the route and only
 // calls Claude when a free-text question needs it. Every route answers with
 // this one shape. Anything else is treated as a failure.
-export const ROUTES = ['silent', 'agent_off', 'ready_answer', 'claude', 'booking_offer', 'booking_done', 'booking_failed'] as const;
+export const ROUTES = ['silent', 'agent_off', 'ready_answer', 'claude', 'booking_offer', 'booking_done', 'booking_failed', 'goodbye'] as const;
 
 const AgentOk = z.object({
   ok: z.literal(true),
@@ -15,7 +15,7 @@ const AgentOk = z.object({
   needs_human: z.boolean().default(false),
   intent: z.string().default('question'),
   reason: z.string().default(''),
-  action: z.enum(['booking']).nullable().default(null),
+  action: z.enum(['booking', 'survey']).nullable().default(null),
   guardrail: z.string().nullable().default(null),
 });
 const AgentFail = z.object({

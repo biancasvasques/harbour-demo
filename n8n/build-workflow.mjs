@@ -7,6 +7,7 @@
 // The flow on the canvas:
 //
 //   Webhook -> Read request -> Router ─┬─ Silent ──────────── Stay silent ───────────────┐
+//                                      ├─ Goodbye ─────────── Goodbye + survey ──────────┤
 //                                      ├─ Agent off ───────── Agent off message ─────────┤
 //                                      ├─ Ready answer ────── Ready answer (no AI) ──────┤
 //                                      ├─ Booking ─────────── Check free times ─ Offer times ┤
@@ -37,6 +38,7 @@ const toolHeaders = { sendHeaders: true, headerParameters: { parameters: [{ name
 
 const ROUTES = [
   ['silent', 'Silent'],
+  ['goodbye', 'Goodbye'],
   ['agent_off', 'Agent off'],
   ['ready_answer', 'Ready answer'],
   ['booking', 'Booking'],
@@ -69,6 +71,7 @@ const nodes = [
     },
   },
   codeNode('n04', 'Stay silent', 'stay-silent.js', [760, 0]),
+  codeNode('n18', 'Goodbye + survey', 'goodbye.js', [760, -120]),
   codeNode('n05', 'Agent off message', 'agent-off.js', [760, 120]),
   codeNode('n06', 'Ready answer (no AI)', 'ready-answer.js', [760, 240]),
   {
@@ -130,8 +133,9 @@ const to = (node) => ({ node, type: 'main', index: 0 });
 const connections = {
   Webhook: { main: [[to('Read request')]] },
   'Read request': { main: [[to('Router')]] },
-  Router: { main: [[to('Stay silent')], [to('Agent off message')], [to('Ready answer (no AI)')], [to('Check free times')], [to('Reserve slot')], [to('Build request')]] },
+  Router: { main: [[to('Stay silent')], [to('Goodbye + survey')], [to('Agent off message')], [to('Ready answer (no AI)')], [to('Check free times')], [to('Reserve slot')], [to('Build request')]] },
   'Stay silent': { main: [[to('Reply to app')]] },
+  'Goodbye + survey': { main: [[to('Reply to app')]] },
   'Agent off message': { main: [[to('Reply to app')]] },
   'Ready answer (no AI)': { main: [[to('Reply to app')]] },
   'Check free times': { main: [[to('Offer times')], [to('Tool failure')]] },

@@ -99,4 +99,4 @@ const payload = {
   output_config: { effort: 'low', format: { type: 'json_schema', schema: replySchema } },
 };
 
-return [{ json: { payload, approved_codes: approvedCodes } }];
+return [{ json: { payload, approved_codes: approvedCodes, message } }];
