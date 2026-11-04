@@ -138,12 +138,19 @@ https://harbour-demo-theta.vercel.app/invoices
 
 The same company's back office. A supplier invoice comes in, the AI copies what is printed, code checks it, and nothing becomes a cost until a person approves it.
 
-1. **Read (AI).** A second n8n workflow sends the image to Claude (vision) with a fixed output format: supplier, ABN, invoice number, dates, line items, subtotal, GST and total. Anything it cannot read comes back empty, never guessed.
-2. **Check (code).** The app checks the ABN against the official checksum, that the line items add up, that GST is 10%, that subtotal plus GST equals the total, the due date, and whether the same invoice was already approved.
-3. **Decide (a person).** The reviewer sees the document next to the extracted fields and the checks. They can correct a field (every check runs again), approve, or reject. An invoice with a problem can only be approved with a written reason, kept with the invoice.
-4. **Cost.** Approved invoices feed the totals: approved costs, GST you can claim, and what is due in the next 14 days.
+1. **Read (AI).** Drop a PDF or a photo in the upload box. A second n8n workflow sends it to Claude with a fixed output format: supplier, ABN, invoice number, dates, line items, GST and total. Anything it cannot read comes back empty, never guessed.
+2. **Check (code).** The app checks that the ABN is a real one (official checksum), that the items add up, that GST is 10%, that the total is right, and whether the same invoice was already paid.
+3. **Decide (a person).** The result shows the document next to what was read, with the problems in plain words. The reviewer can fix a field (the checks run again), approve or reject. An invoice with a problem can only be approved with a written reason, kept with the invoice.
+4. **History.** Approved invoices feed the totals: approved to pay, GST you can claim back, and what is due in the next 14 days.
 
-**Try it in 2 minutes:** read *Bondi Homestay* (clean, approve it), *Harbourside Airport Transfers* (the GST is wrong: correct it to 29.50 and the total to 324.50, then approve), and *OfficeHub* (already paid last month: the duplicate check catches it, reject it). You can also upload a photo of your own invoice or receipt. The *Simulate AI failure* switch in the team panel applies here too: the read fails cleanly and the panel shows the alert.
+**Try it in 2 minutes:** each sample invoice has **Check it** and **Download PDF** (download one and drop it in the box to try the upload).
+- *Bondi Homestay*: everything adds up. Approve it.
+- *Airport Transfers*: the GST is wrong. Click **Fix a field**, set GST to 29.50 and the total to 324.50, save, then approve.
+- *OfficeHub Supplies*: it was paid last month, and the duplicate check catches it. Reject it.
+
+The *Simulate AI failure* switch in the team panel applies here too: the read fails cleanly and the panel shows the alert.
+
+<img src="docs/screens/invoices-home.png" width="640" alt="Invoice checker: upload box and sample invoices">
 
 ---
 

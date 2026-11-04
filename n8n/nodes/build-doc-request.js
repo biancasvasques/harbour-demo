@@ -1,12 +1,12 @@
 // n8n Code node "Build request" (document reader).
-// Receives one image from the app and builds the Claude request. The output
+// Receives one image or PDF from the app and builds the Claude request. The output
 // format is fixed here: the model extracts, it never decides. Checks and
 // approval happen afterwards, in code and by a person.
 const b = ($input.first().json || {}).body || {};
 const img = b.image || {};
-const TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
 if (!TYPES.includes(img.media_type) || typeof img.data !== 'string' || img.data.length < 100) {
-  throw new Error('invalid_input: image is required (jpeg, png, webp or gif, base64)');
+  throw new Error('invalid_input: a document is required (pdf, jpeg, png, webp or gif, base64)');
 }
 if (img.data.length > 5_000_000) throw new Error('invalid_input: image too large');
 
@@ -57,7 +57,9 @@ const payload = {
   messages: [{
     role: 'user',
     content: [
-      { type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } },
+      img.media_type === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: img.data } }
+        : { type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } },
       { type: 'text', text: 'Extract the fields of this document.' },
     ],
   }],

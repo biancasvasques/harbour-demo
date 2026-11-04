@@ -49,7 +49,7 @@ export function runChecks(e: Extracted, existing: Existing[], selfId?: string): 
   const add = (level: Check['level'], code: string, message: string) => out.push({ level, code, message });
 
   if (e.document_type && e.document_type !== 'invoice') {
-    add('warning', 'not_invoice', `This looks like a ${e.document_type}, not a tax invoice. Check before paying.`);
+    add('warning', 'not_invoice', `This is a ${e.document_type}, not a tax invoice. Check it before paying.`);
   }
 
   // required fields: never guessed by the model, so missing means a person looks
@@ -57,12 +57,12 @@ export function runChecks(e: Extracted, existing: Existing[], selfId?: string): 
     ['supplier name', e.supplier_name], ['invoice number', e.invoice_number],
     ['invoice date', e.invoice_date], ['total', e.total],
   ].filter(([, v]) => v === null || v === '').map(([k]) => k);
-  if (missing.length) add('error', 'missing', `Could not read: ${missing.join(', ')}.`);
+  if (missing.length) add('error', 'missing', `We couldn't find the ${missing.join(', ')} on the document. Please fill ${missing.length === 1 ? 'it' : 'them'} in.`);
 
   // ABN
-  if (!e.abn) add('warning', 'abn_missing', 'No ABN on the invoice. Without it, 47% must be withheld unless the supplier is exempt.');
-  else if (!abnIsValid(e.abn)) add('error', 'abn_invalid', `ABN ${e.abn} fails the official checksum.`);
-  else add('ok', 'abn_valid', 'ABN passes the checksum.');
+  if (!e.abn) add('warning', 'abn_missing', 'There is no ABN (business number) on the invoice. Ask the supplier for it before paying.');
+  else if (!abnIsValid(e.abn)) add('error', 'abn_invalid', `The ABN ${e.abn} is not a valid business number.`);
+  else add('ok', 'abn_valid', 'The ABN is valid.');
 
   // lines add up
   const sub = toCents(e.subtotal);
@@ -72,43 +72,43 @@ export function runChecks(e: Extracted, existing: Existing[], selfId?: string): 
   if (lineCents.length && lineCents.every((c) => c !== null)) {
     const sum = (lineCents as number[]).reduce((a, b) => a + b, 0);
     if (sub !== null) {
-      if (Math.abs(sum - sub) > TOLERANCE_CENTS) add('error', 'lines_mismatch', `Line items add up to ${money(sum)}, but the subtotal is ${money(sub)}.`);
-      else add('ok', 'lines_match', 'Line items add up to the subtotal.');
+      if (Math.abs(sum - sub) > TOLERANCE_CENTS) add('error', 'lines_mismatch', `The items add up to ${money(sum)}, but the invoice says ${money(sub)} before GST.`);
+      else add('ok', 'lines_match', 'The items add up.');
     } else if (total !== null) {
       // no subtotal printed (typical receipt): lines may include GST or not
       const exGst = gst !== null ? total - gst : null;
       const near = (x: number | null) => x !== null && Math.abs(sum - x) <= TOLERANCE_CENTS;
-      if (near(total) || near(exGst)) add('ok', 'lines_match', 'Line items add up to the total.');
-      else add('error', 'lines_mismatch', `Line items add up to ${money(sum)}, but the total is ${money(total)}.`);
+      if (near(total) || near(exGst)) add('ok', 'lines_match', 'The items add up.');
+      else add('error', 'lines_mismatch', `The items add up to ${money(sum)}, but the invoice says ${money(total)}.`);
     }
   }
 
   // GST is 10% and the total adds up
   if (sub !== null && gst !== null) {
     const expected = Math.round(sub * GST_RATE);
-    if (Math.abs(gst - expected) > TOLERANCE_CENTS) add('error', 'gst_wrong', `GST is ${money(gst)}, but 10% of ${money(sub)} is ${money(expected)}.`);
-    else add('ok', 'gst_ok', 'GST is 10% of the subtotal.');
+    if (Math.abs(gst - expected) > TOLERANCE_CENTS) add('error', 'gst_wrong', `GST should be ${money(expected)} (10%), but the invoice charges ${money(gst)}.`);
+    else add('ok', 'gst_ok', 'GST is 10%, as it should be.');
   }
   if (sub !== null && gst !== null && total !== null) {
-    if (Math.abs(sub + gst - total) > TOLERANCE_CENTS) add('error', 'total_mismatch', `Subtotal plus GST is ${money(sub + gst)}, but the total says ${money(total)}.`);
+    if (Math.abs(sub + gst - total) > TOLERANCE_CENTS) add('error', 'total_mismatch', `The total should be ${money(sub + gst)}, but the invoice says ${money(total)}.`);
   }
 
   // dates
-  if (e.invoice_date && !isDate(e.invoice_date)) add('warning', 'bad_date', 'The invoice date is not a valid date.');
+  if (e.invoice_date && !isDate(e.invoice_date)) add('warning', 'bad_date', 'The invoice date is not a real date.');
   if (isDate(e.invoice_date) && isDate(e.due_date) && Date.parse(e.due_date as string) < Date.parse(e.invoice_date as string)) {
     add('warning', 'due_before_date', 'The due date is before the invoice date.');
   }
-  if (!e.due_date) add('warning', 'no_due_date', 'No due date found. Payment terms need confirming.');
+  if (!e.due_date) add('warning', 'no_due_date', 'There is no due date. Confirm the payment terms with the supplier.');
 
   // duplicates: same supplier (ABN or name) and same invoice number, not rejected
   if (e.invoice_number) {
     const dup = existing.find((x) => x.id !== selfId && x.status !== 'rejected'
       && norm(x.invoice_number) === norm(e.invoice_number)
       && ((e.abn && norm(x.abn) === norm(e.abn)) || norm(x.supplier) === norm(e.supplier_name)));
-    if (dup) add('error', 'duplicate', `Invoice ${e.invoice_number} from this supplier is already ${dup.status === 'approved' ? 'approved' : 'waiting for review'}. Paying it again would be a double payment.`);
+    if (dup) add('error', 'duplicate', `Invoice ${e.invoice_number} from this supplier was already ${dup.status === 'approved' ? 'approved' : 'uploaded'}. Paying it again would pay it twice.`);
   }
 
-  if (e.unclear) add('warning', 'unclear', `The AI flagged: ${e.unclear}`);
+  if (e.unclear) add('warning', 'unclear', `The AI wasn't sure about this: ${e.unclear}`);
   return out;
 }
 

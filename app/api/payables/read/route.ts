@@ -9,17 +9,17 @@ export const maxDuration = 60;
 
 const Body = z.union([
   z.object({ sample: z.enum(Object.keys(SAMPLES) as [SampleKey, ...SampleKey[]]) }),
-  // the browser downscales uploads to a JPEG of about 1600px before sending
-  z.object({ image: z.string().regex(/^data:image\/(jpeg|png|webp);base64,/).max(2_000_000) }),
+  // photos are downscaled in the browser to a JPEG of about 1600px; PDFs go as they are (up to 3 MB)
+  z.object({ image: z.string().regex(/^data:(image\/(jpeg|png|webp)|application\/pdf);base64,/).max(4_100_000) }),
 ]);
 
 type ReaderReply = { ok: true; extracted: Extracted } | { ok: false; error: string; detail: string };
 
-// POST /api/payables/read : one invoice image in, a payable waiting for review out.
+// POST /api/payables/read : one invoice (photo or PDF) in, a payable waiting for review out.
 // The AI reads it (n8n workflow), the code checks it, a person decides later.
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: 'Send one of the sample invoices, or a JPEG or PNG under 1.5 MB.' }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: 'Send one of the sample invoices, or a PDF, JPG or PNG under 3 MB.' }, { status: 400 });
 
   const url = process.env.N8N_DOCS_WEBHOOK_URL;
   if (!url) return NextResponse.json({ error: 'The invoice reader is not connected yet.' }, { status: 503 });
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     if (!res.ok) return NextResponse.json({ error: 'Sample invoice not found.' }, { status: 500 });
     data = Buffer.from(await res.arrayBuffer()).toString('base64');
   } else {
-    const m = body.image.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+    const m = body.image.match(/^data:([a-z]+\/[a-z]+);base64,(.*)$/);
     mediaType = m![1];
     data = m![2];
   }

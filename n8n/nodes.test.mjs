@@ -207,7 +207,9 @@ test('doc request: image goes in, format is fixed, nothing is calculated by the 
   assert.equal(out.payload.output_config.format.schema.additionalProperties, false);
   assert.match(out.payload.system[0].text, /Never guess/);
   assert.equal(run('build-doc-request.js', { body: { image: img, simulate_failure: true } }).payload.model, 'harbour-simulated-failure');
-  assert.throws(() => run('build-doc-request.js', { body: { image: { media_type: 'application/pdf', data: 'x'.repeat(200) } } }), /invalid_input/);
+  const pdf = run('build-doc-request.js', { body: { image: { media_type: 'application/pdf', data: 'x'.repeat(200) } } });
+  assert.equal(pdf.payload.messages[0].content[0].type, 'document');
+  assert.throws(() => run('build-doc-request.js', { body: { image: { media_type: 'text/html', data: 'x'.repeat(200) } } }), /invalid_input/);
 });
 
 test('doc check: valid extraction passes through, wrong shape becomes invalid_output', () => {

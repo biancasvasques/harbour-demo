@@ -15,7 +15,7 @@ export type PayableRow = {
   id: string; source: string; sample_key: string | null; status: string; extracted: Extracted; checks: Check[];
   supplier: string | null; abn: string | null; invoice_number: string | null; invoice_date: string | null; due_date: string | null;
   subtotal_cents: number | null; gst_cents: number | null; total_cents: number | null; edited: boolean;
-  decision_note: string | null; decided_at: string | null; created_at: string;
+  decision_note: string | null; decided_at: string | null; created_at: string; is_pdf: boolean;
 };
 
 // The columns the panel sorts and sums on are derived from what the AI read
@@ -46,7 +46,8 @@ export async function checksFor(e: Extracted, selfId?: string): Promise<Check[]>
 
 export const LIST_COLUMNS = `id, source, sample_key, status, extracted, checks, supplier, abn, invoice_number,
   to_char(invoice_date, 'YYYY-MM-DD') as invoice_date, to_char(due_date, 'YYYY-MM-DD') as due_date,
-  subtotal_cents, gst_cents, total_cents, edited, decision_note, decided_at, created_at`;
+  subtotal_cents, gst_cents, total_cents, edited, decision_note, decided_at, created_at,
+  coalesce(image_data like 'data:application/pdf%', false) as is_pdf`;
 
 // Fields a person may correct before approving.
 export const Correction = z.object({
