@@ -196,3 +196,27 @@ test('ready answer, offer and booking confirmation end with a question', () => {
   assert.match(run('offer-times.js', { count: 5 }, { 'Read request': { message: 'quero agendar' } }).reply, /Qual fica melhor/);
   assert.match(run('booking-result.js', { ok: true, when: 'Mon 10am', where: 'online', ref: 'HB-1' }).reply, /\?$/);
 });
+
+// --- invoice reader ---
+const img = { media_type: 'image/jpeg', data: 'x'.repeat(200) };
+test('doc request: image goes in, format is fixed, nothing is calculated by the model', () => {
+  const out = run('build-doc-request.js', { body: { image: img } });
+  assert.equal(out.payload.model, 'claude-sonnet-5-5');
+  assert.equal(out.payload.messages[0].content[0].type, 'image');
+  assert.equal(out.payload.output_config.format.type, 'json_schema');
+  assert.equal(out.payload.output_config.format.schema.additionalProperties, false);
+  assert.match(out.payload.system[0].text, /Never guess/);
+  assert.equal(run('build-doc-request.js', { body: { image: img, simulate_failure: true } }).payload.model, 'harbour-simulated-failure');
+  assert.throws(() => run('build-doc-request.js', { body: { image: { media_type: 'application/pdf', data: 'x'.repeat(200) } } }), /invalid_input/);
+});
+
+test('doc check: valid extraction passes through, wrong shape becomes invalid_output', () => {
+  const e = { document_type: 'invoice', supplier_name: 'A', abn: null, invoice_number: '1', invoice_date: '2026-10-01', due_date: null,
+    currency: 'AUD', line_items: [{ description: 'x', quantity: 1, amount: 10 }], subtotal: 10, gst: 1, total: 11, unclear: null };
+  const ok = run('check-document.js', { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(e) }] });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.extracted.total, 11);
+  const bad = run('check-document.js', { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ ...e, total: '11' }) }] });
+  assert.equal(bad.ok, false);
+  assert.equal(run('check-document.js', { stop_reason: 'refusal', content: [] }).error, 'invalid_output');
+});

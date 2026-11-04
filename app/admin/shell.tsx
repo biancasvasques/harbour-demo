@@ -14,6 +14,7 @@ export default async function Shell({ active, children }: { active: string; chil
     ['/admin', 'Conversations'],
     ['/admin/knowledge', 'Knowledge'],
     ['/admin/bookings', 'Bookings'],
+    ['/invoices', 'Invoices'],
     ['/admin/settings', 'Settings'],
   ];
   return (
