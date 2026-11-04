@@ -291,7 +291,7 @@ export default function Chat() {
             </div>
           )}
 
-          {bookingOpen && !booked && (
+          {bookingOpen && (
             <div className="reveal">
               <BookingCard token={token} onBooked={(t) => void onBooked(t)} onClose={() => setBookingOpen(false)} />
             </div>

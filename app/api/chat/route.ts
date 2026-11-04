@@ -83,10 +83,14 @@ export async function POST(req: Request) {
   }
 
   // history BEFORE this message, for the agent
+  // System notes that change the situation (a booking confirmation) go into the
+  // history too, written as the assistant's own turn, so the agent knows the
+  // visitor already booked. Other notices (after hours, fallback) stay out.
   const history = (await db().query<{ role: string; content: string }>(
-    `select role, content from (
-       select role, content, created_at, id from harbour.messages where conversation_id = $1 and role <> 'system'
-       order by created_at desc, id desc limit 10) h
+    `select case when role = 'system' then 'agent' else role end as role, content from (
+       select role, content, created_at, id from harbour.messages
+        where conversation_id = $1 and (role <> 'system' or meta ? 'booking')
+        order by created_at desc, id desc limit 10) h
      order by created_at, id`,
     [conv.id],
   )).rows;
