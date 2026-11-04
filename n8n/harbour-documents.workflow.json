@@ -1,0 +1,192 @@
+{
+  "name": "Harbour demo · invoice reader",
+  "nodes": [
+    {
+      "id": "d01",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "0b8f5c1e-2d44-4f6a-9c3e-7a1d5e9b2c40",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "REPLACE-WITH-SECRET-PATH",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      }
+    },
+    {
+      "id": "d02",
+      "name": "Build request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Build request\" (document reader).\n// Receives one image from the app and builds the Claude request. The output\n// format is fixed here: the model extracts, it never decides. Checks and\n// approval happen afterwards, in code and by a person.\nconst b = ($input.first().json || {}).body || {};\nconst img = b.image || {};\nconst TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];\nif (!TYPES.includes(img.media_type) || typeof img.data !== 'string' || img.data.length < 100) {\n  throw new Error('invalid_input: image is required (jpeg, png, webp or gif, base64)');\n}\nif (img.data.length > 5_000_000) throw new Error('invalid_input: image too large');\n\nconst num = { anyOf: [{ type: 'number' }, { type: 'null' }] };\nconst str = { anyOf: [{ type: 'string' }, { type: 'null' }] };\nconst schema = {\n  type: 'object',\n  properties: {\n    document_type: { anyOf: [{ type: 'string', enum: ['invoice', 'receipt', 'other'] }, { type: 'null' }] },\n    supplier_name: str,\n    abn: { ...str, description: 'Australian Business Number exactly as printed, or null' },\n    invoice_number: str,\n    invoice_date: { ...str, description: 'YYYY-MM-DD' },\n    due_date: { ...str, description: 'YYYY-MM-DD, only if printed' },\n    currency: { ...str, description: 'ISO code, e.g. AUD' },\n    line_items: {\n      type: 'array',\n      items: {\n        type: 'object',\n        properties: { description: str, quantity: num, amount: { ...num, description: 'line total as printed' } },\n        required: ['description', 'quantity', 'amount'],\n        additionalProperties: false,\n      },\n    },\n    subtotal: { ...num, description: 'amount before tax, as printed' },\n    gst: { ...num, description: 'GST or tax amount, as printed' },\n    total: { ...num, description: 'total payable, as printed' },\n    unclear: { ...str, description: 'anything hard to read or ambiguous, in one short sentence, or null' },\n  },\n  required: ['document_type', 'supplier_name', 'abn', 'invoice_number', 'invoice_date', 'due_date', 'currency',\n    'line_items', 'subtotal', 'gst', 'total', 'unclear'],\n  additionalProperties: false,\n};\n\nconst rules = [\n  'You read supplier invoices and receipts for the accounts team of an education agency in Sydney.',\n  'Copy values exactly as printed on the document. Do not calculate, correct or complete anything:',\n  'if the GST looks wrong, copy it as printed; the team checks the maths separately.',\n  'If a field is missing, cut off or not legible, return null for it. Never guess.',\n  'Amounts are plain numbers without currency symbols (1,677.50 becomes 1677.5). Dates become YYYY-MM-DD.',\n  'Use \"unclear\" to mention anything a person should double-check.',\n].join('\\n');\n\nconst payload = {\n  model: b.simulate_failure === true ? 'harbour-simulated-failure' : 'claude-sonnet-5-5',\n  max_tokens: 4096,\n  system: [{ type: 'text', text: rules, cache_control: { type: 'ephemeral' } }],\n  messages: [{\n    role: 'user',\n    content: [\n      { type: 'image', source: { type: 'base64', media_type: img.media_type, data: img.data } },\n      { type: 'text', text: 'Extract the fields of this document.' },\n    ],\n  }],\n  output_config: { effort: 'low', format: { type: 'json_schema', schema } },\n  // if a safety classifier ever declines, the API retries on a fallback model in the same call\n  fallbacks: 'default',\n};\n\nreturn [{ json: { payload } }];\n"
+      }
+    },
+    {
+      "id": "d03",
+      "name": "Call Claude (vision)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        300
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "anthropic-beta",
+              "value": "server-side-fallback-2026-07-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "REPLACE",
+          "name": "Anthropic demo"
+        }
+      }
+    },
+    {
+      "id": "d04",
+      "name": "Check extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        280
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Check extraction\" (document reader).\n// The model's word is not trusted: the reply must be the fixed format, with the\n// right types. Business rules (GST, ABN, duplicates) run in the app afterwards,\n// next to the database.\nconst resp = $input.first().json || {};\nlet e = null;\ntry {\n  const txt = (resp.content || []).filter((c) => c && c.type === 'text').map((c) => c.text).join('');\n  e = JSON.parse(txt);\n} catch (err) {\n  e = null;\n}\nif (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') e = null;\n\nconst isNum = (v) => v === null || (typeof v === 'number' && Number.isFinite(v));\nconst isStr = (v) => v === null || typeof v === 'string';\nconst ok = e && typeof e === 'object'\n  && ['supplier_name', 'abn', 'invoice_number', 'invoice_date', 'due_date', 'currency', 'unclear'].every((k) => isStr(e[k]))\n  && ['subtotal', 'gst', 'total'].every((k) => isNum(e[k]))\n  && Array.isArray(e.line_items)\n  && e.line_items.every((l) => l && isStr(l.description) && isNum(l.quantity) && isNum(l.amount));\n\nif (!ok) {\n  return [{ json: { ok: false, error: 'invalid_output', detail: 'The model did not return the expected invoice format.' } }];\n}\nconst clip = (v, n) => (typeof v === 'string' ? v.slice(0, n) : v);\nreturn [{\n  json: {\n    ok: true,\n    extracted: {\n      document_type: ['invoice', 'receipt', 'other'].includes(e.document_type) ? e.document_type : null,\n      supplier_name: clip(e.supplier_name, 160),\n      abn: clip(e.abn, 20),\n      invoice_number: clip(e.invoice_number, 60),\n      invoice_date: clip(e.invoice_date, 10),\n      due_date: clip(e.due_date, 10),\n      currency: clip(e.currency, 3),\n      line_items: e.line_items.slice(0, 50).map((l) => ({ description: clip(l.description, 200), quantity: l.quantity, amount: l.amount })),\n      subtotal: e.subtotal,\n      gst: e.gst,\n      total: e.total,\n      unclear: clip(e.unclear, 300),\n    },\n    usage: resp.usage || null,\n  },\n}];\n"
+      }
+    },
+    {
+      "id": "d05",
+      "name": "Describe failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        460
+      ],
+      "parameters": {
+        "jsCode": "// n8n Code node \"Describe failure\" (Run Once for All Items).\n// The Claude call failed (bad key, no credit, timeout, invalid request...).\n// The workflow still answers the app, with ok:false, so the app can send the\n// fallback message to the visitor and raise the alert in the panel.\n// n8n puts the generic text in error.message and the API's own explanation in\n// error.description: keep both so the panel shows the real cause.\nconst j = $input.first().json || {};\nconst err = j.error || {};\nconst parts = [err.message, err.description].filter((x) => typeof x === 'string' && x.trim());\nconst detail = (parts.join(' | ') || JSON.stringify(err) || 'unknown error').slice(0, 500);\nreturn [{ json: { ok: false, error: 'ai_error', detail } }];\n"
+      }
+    },
+    {
+      "id": "d06",
+      "name": "Reply to app",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build request": {
+      "main": [
+        [
+          {
+            "node": "Call Claude (vision)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude (vision)": {
+      "main": [
+        [
+          {
+            "node": "Check extraction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Describe failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check extraction": {
+      "main": [
+        [
+          {
+            "node": "Reply to app",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Describe failure": {
+      "main": [
+        [
+          {
+            "node": "Reply to app",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {}
+}
