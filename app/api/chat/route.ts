@@ -42,11 +42,11 @@ const publicMessages = (convId: string, since?: string) =>
 export async function GET(req: Request) {
   const token = new URL(req.url).searchParams.get('token') ?? '';
   if (!z.string().uuid().safeParse(token).success) return NextResponse.json({ messages: [] });
-  const c = await db().query<Conv & { visitor_name: string | null; rating: number | null }>(
-    'select id, status, visitor_name, rating from harbour.conversations where visitor_token = $1', [token]);
+  const c = await db().query<Conv & { visitor_name: string | null; rating: number | null; rated_at: string | null }>(
+    'select id, status, visitor_name, rating, rated_at from harbour.conversations where visitor_token = $1', [token]);
   if (!c.rows[0]) return NextResponse.json({ messages: [] });
   const m = await publicMessages(c.rows[0].id);
-  return NextResponse.json({ status: c.rows[0].status, visitor_name: c.rows[0].visitor_name, rating: c.rows[0].rating, messages: m.rows });
+  return NextResponse.json({ status: c.rows[0].status, visitor_name: c.rows[0].visitor_name, rating: c.rows[0].rating, rated_at: c.rows[0].rated_at, messages: m.rows });
 }
 
 // POST /api/chat : a visitor message in, the replies out.

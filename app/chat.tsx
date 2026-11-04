@@ -219,16 +219,18 @@ export default function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
+  const [ratedAt, setRatedAt] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (t: string) => {
     try {
       const res = await fetch(`/api/chat?token=${encodeURIComponent(t)}`, { cache: 'no-store' });
-      const data = (await res.json()) as { status?: string; visitor_name?: string | null; rating?: number | null; messages: Message[] };
+      const data = (await res.json()) as { status?: string; visitor_name?: string | null; rating?: number | null; rated_at?: string | null; messages: Message[] };
       setMessages(data.messages);
       if (data.status) setStatus(data.status);
       setVisitorName(data.visitor_name ?? null);
       setRating(data.rating ?? null);
+      setRatedAt(data.rated_at ?? null);
     } catch { /* next poll retries */ }
   }, []);
 
@@ -252,6 +254,9 @@ export default function Chat() {
   const surveyAt = messages.map((m) => m.action).lastIndexOf('survey');
   const lastVisitorAt = messages.map((m) => m.role).lastIndexOf('visitor');
   const showSurvey = surveyAt > -1 && surveyAt > lastVisitorAt;
+  // a rating given before this goodbye belongs to an earlier goodbye: ask again
+  const ratedThisTime = rating !== null && ratedAt !== null && surveyAt > -1
+    && new Date(ratedAt).getTime() >= new Date(messages[surveyAt].created_at).getTime();
 
   async function sendText(text: string) {
     if (!text || sending) return;
@@ -300,6 +305,7 @@ export default function Chat() {
     setError(null);
     setBookingOpen(false);
     setRating(null);
+    setRatedAt(null);
   }
 
   const human = status === 'human';
@@ -384,7 +390,7 @@ export default function Chat() {
           )}
           {showSurvey && !sending && (
             <div className="reveal">
-              <SurveyCard token={token} rating={rating} onRated={setRating} />
+              <SurveyCard key={surveyAt} token={token} rating={ratedThisTime ? rating : null} onRated={(r) => { setRating(r); setRatedAt(new Date().toISOString()); }} />
             </div>
           )}
           <div ref={endRef} />
