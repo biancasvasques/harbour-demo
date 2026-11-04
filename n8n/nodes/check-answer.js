@@ -10,8 +10,15 @@
 const resp = $input.first().json || {};
 const approved = new Set($('Build request').first().json.approved_codes || []);
 
-const tu = (resp.content || []).find((b) => b && b.type === 'tool_use');
-const a = (tu && tu.input) || null;
+// Structured output: the answer is the JSON in the text block.
+let a = null;
+try {
+  const txt = (resp.content || []).filter((b) => b && b.type === 'text').map((b) => b.text).join('');
+  a = JSON.parse(txt);
+} catch (e) {
+  a = null;
+}
+if (resp.stop_reason === 'refusal' || resp.stop_reason === 'max_tokens') a = null;
 
 if (!a || typeof a.reply !== 'string' || !a.reply.trim() || typeof a.knew !== 'boolean') {
   return [{ json: { ok: false, error: 'invalid_output', detail: 'The model did not return the expected format.' } }];

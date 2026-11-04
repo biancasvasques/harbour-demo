@@ -24,14 +24,17 @@ const context = {
   ],
   history: [{ role: 'visitor', content: 'Hi' }, { role: 'agent', content: 'Hello!' }],
 };
-const toolReply = (input) => ({ content: [{ type: 'tool_use', name: 'answer_visitor', input }] });
+// structured output: the model's JSON arrives as the text block
+const toolReply = (input) => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ reason: '', ...input }) }] });
 const built = { approved_codes: ['F07'] };
 
 test('build: only well-formed fact codes reach the model, format is forced', () => {
   const out = run('build-request.js', { body: context });
   assert.deepEqual(out.approved_codes, ['F07']);
   assert.equal(out.payload.model, 'claude-sonnet-5-5');
-  assert.equal(out.payload.tool_choice.name, 'answer_visitor');
+  assert.equal(out.payload.tool_choice, undefined); // forced tool use is a 400 on Sonnet 5.5
+  assert.equal(out.payload.output_config.format.type, 'json_schema');
+  assert.deepEqual(out.payload.output_config.format.schema.required, ['reply', 'knew', 'fact_codes', 'needs_human', 'reason']);
   assert.match(out.payload.system[1].text, /\[F07\]/);
   assert.doesNotMatch(out.payload.system[1].text, /ignored/);
   assert.equal(out.payload.system[0].cache_control.type, 'ephemeral');
@@ -84,7 +87,17 @@ test('check: a broken reply format is reported, not sent', () => {
   assert.equal(out.error, 'invalid_output');
 });
 
-test('failure: an API error becomes ok:false for the app', () => {
-  const out = run('describe-failure.js', { error: { message: 'Your credit balance is too low' } });
-  assert.deepEqual(out, { ok: false, error: 'ai_error', detail: 'Your credit balance is too low' });
+test('failure: an API error becomes ok:false for the app, with the real cause', () => {
+  const out = run('describe-failure.js', { error: { message: 'Bad request - please check your parameters', description: 'tool_choice: type "tool" is not supported for this model.' } });
+  assert.equal(out.ok, false);
+  assert.equal(out.error, 'ai_error');
+  assert.match(out.detail, /Bad request/);
+  assert.match(out.detail, /not supported/);
+});
+
+test('check: a truncated or refused answer is not sent', () => {
+  for (const stop_reason of ['max_tokens', 'refusal']) {
+    const out = run('check-answer.js', { ...toolReply({ reply: 'ok', knew: true, fact_codes: [], needs_human: false }), stop_reason }, { 'Build request': built });
+    assert.equal(out.ok, false, stop_reason);
+  }
 });

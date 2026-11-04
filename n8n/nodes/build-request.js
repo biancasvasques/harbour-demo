@@ -47,37 +47,37 @@ const rules = [
   factLines.join('\n') || '(no approved facts)',
 ].join('\n');
 
-const tool = {
-  name: 'answer_visitor',
-  description: 'Reply to the website visitor and report what the reply is based on.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      reply: { type: 'string', description: 'The message shown to the visitor.' },
-      knew: {
-        type: 'boolean',
-        description: 'true only if the approved facts answer the question (or it is a greeting). false if a person must answer.',
-      },
-      fact_codes: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Codes of the approved facts used, e.g. ["F07"]. Empty for greetings.',
-      },
-      needs_human: {
-        type: 'boolean',
-        description: 'true if a consultant must take over (unknown answer, quote, booking, complaint, asked for a person).',
-      },
-      reason: { type: 'string', description: 'Short internal note for the team when needs_human is true.' },
+// The reply format, enforced by the API (structured outputs): the response is
+// always valid JSON matching this schema. (Forced tool_choice is rejected by
+// Claude Sonnet 5.5, so structured outputs is the supported way to get it.)
+const replySchema = {
+  type: 'object',
+  properties: {
+    reply: { type: 'string', description: 'The message shown to the visitor.' },
+    knew: {
+      type: 'boolean',
+      description: 'true only if the approved facts answer the question (or it is a greeting). false if a person must answer.',
     },
-    required: ['reply', 'knew', 'fact_codes', 'needs_human'],
+    fact_codes: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Codes of the approved facts used, e.g. ["F07"]. Empty for greetings.',
+    },
+    needs_human: {
+      type: 'boolean',
+      description: 'true if a consultant must take over (unknown answer, quote, booking, complaint, asked for a person).',
+    },
+    reason: { type: 'string', description: 'Short internal note for the team when needs_human is true, otherwise empty.' },
   },
+  required: ['reply', 'knew', 'fact_codes', 'needs_human', 'reason'],
+  additionalProperties: false,
 };
 
 const payload = {
   // "Simulate AI failure" in the panel sends a model that does not exist, so the
   // demo exercises the REAL error path of the workflow, not a fake one.
   model: body.simulate_failure === true ? 'harbour-simulated-failure' : 'claude-sonnet-5-5',
-  max_tokens: 1024,
+  max_tokens: 4096,  // room for adaptive thinking + the short JSON reply
   system: [
     { type: 'text', text: instructions, cache_control: { type: 'ephemeral' } },
     { type: 'text', text: rules, cache_control: { type: 'ephemeral' } },
@@ -90,8 +90,8 @@ const payload = {
         `New message from the visitor:\n<visitor_message>\n${message}\n</visitor_message>`,
     },
   ],
-  tools: [tool],
-  tool_choice: { type: 'tool', name: 'answer_visitor' },
+  // low effort: short support replies from a fixed fact list, latency matters
+  output_config: { effort: 'low', format: { type: 'json_schema', schema: replySchema } },
 };
 
 return [{ json: { payload, approved_codes: approvedCodes } }];
