@@ -21,3 +21,22 @@ test('uses the business time zone, not the server clock', () => {
   // 22:00 UTC Monday is 09:00 Tuesday in Sydney
   assert.equal(isOpen(new Date('2026-11-02T22:00:00Z'), tz, H), true);
 });
+
+import { zonedTimeToUtc, nextSlots } from '../lib/hours.ts';
+
+test('Sydney local time converts to the right UTC instant (daylight saving)', () => {
+  assert.equal(zonedTimeToUtc('2026-11-06', '14:00', tz).toISOString(), '2026-11-06T03:00:00.000Z'); // UTC+11
+  assert.equal(zonedTimeToUtc('2026-07-06', '14:00', tz).toISOString(), '2026-07-06T04:00:00.000Z'); // UTC+10
+});
+
+test('slots: next 3 business days, skipping the weekend, inside opening hours', () => {
+  // Thursday 5 Nov 2026, 15:00 in Sydney
+  const slots = nextSlots(new Date('2026-11-05T04:00:00Z'), tz, H);
+  const days = [...new Set(slots.map((s) => s.day))];
+  assert.equal(days.length, 3);
+  assert.match(days[0], /Fri/);
+  assert.match(days[1], /Mon/); // Sat and Sun skipped
+  assert.match(days[2], /Tue/);
+  assert.ok(slots.every((s) => new Date(s.start) > new Date('2026-11-05T04:00:00Z')));
+  assert.equal(slots.filter((s) => /Fri/.test(s.day)).length, 4); // Friday closes 17:00, 16:00 still fits
+});

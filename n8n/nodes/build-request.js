@@ -65,11 +65,16 @@ const replySchema = {
     },
     needs_human: {
       type: 'boolean',
-      description: 'true if a consultant must take over (unknown answer, quote, booking, complaint, asked for a person).',
+      description: 'true if a consultant must follow up (the facts do not answer, a quote, a complaint). Booking a consultation is NOT a reason.',
+    },
+    intent: {
+      type: 'string',
+      enum: ['question', 'book_consultation', 'talk_to_person', 'smalltalk'],
+      description: 'book_consultation when the visitor wants to book, schedule or meet a consultant (the booking form then opens).',
     },
     reason: { type: 'string', description: 'Short internal note for the team when needs_human is true, otherwise empty.' },
   },
-  required: ['reply', 'knew', 'fact_codes', 'needs_human', 'reason'],
+  required: ['reply', 'knew', 'fact_codes', 'needs_human', 'intent', 'reason'],
   additionalProperties: false,
 };
 

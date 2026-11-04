@@ -9,6 +9,7 @@ http.createServer((req, res) => {
     const m = ctx.message.toLowerCase();
     let out;
     if (ctx.simulate_failure || m.includes('crash')) out = { ok: false, error: 'ai_error', detail: 'simulated: model not found' };
+    else if (/book|schedule|agendar|meet/.test(m)) out = { ok: true, reply: 'Of course! Pick a time that suits you just below.', knew: true, fact_codes: [], needs_human: false, intent: 'book_consultation', reason: '' };
     else if (m.includes('scholarship')) out = { ok: true, reply: "I don't have that information.", knew: false, fact_codes: [], needs_human: true, reason: 'Not in approved facts' };
     else if (m.includes('price')) out = { ok: true, reply: 'I can not share prices here.', knew: true, fact_codes: [], needs_human: true, reason: 'Guardrail: price', guardrail: 'price' };
     else out = { ok: true, reply: 'English courses start from 4 weeks.', knew: true, fact_codes: ['F07'], needs_human: false, reason: '' };

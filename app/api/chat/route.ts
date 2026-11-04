@@ -29,11 +29,11 @@ type Settings = {
   simulate_ai_failure: boolean;
 };
 type Conv = { id: string; visitor_token: string; status: string; visitor_messages: number };
-type PublicMessage = { role: string; content: string; created_at: string };
+type PublicMessage = { role: string; content: string; created_at: string; action: string | null; author: string | null };
 
 const publicMessages = (convId: string, since?: string) =>
   db().query<PublicMessage>(
-    `select role, content, created_at from harbour.messages
+    `select role, content, created_at, meta->>'action' as action, meta->>'author' as author from harbour.messages
       where conversation_id = $1 and ($2::timestamptz is null or created_at > $2::timestamptz)
       order by created_at, id`,
     [convId, since ?? null],
@@ -43,10 +43,11 @@ const publicMessages = (convId: string, since?: string) =>
 export async function GET(req: Request) {
   const token = new URL(req.url).searchParams.get('token') ?? '';
   if (!z.string().uuid().safeParse(token).success) return NextResponse.json({ messages: [] });
-  const c = await db().query<Conv>('select id, status from harbour.conversations where visitor_token = $1', [token]);
+  const c = await db().query<Conv & { visitor_name: string | null }>(
+    'select id, status, visitor_name from harbour.conversations where visitor_token = $1', [token]);
   if (!c.rows[0]) return NextResponse.json({ messages: [] });
   const m = await publicMessages(c.rows[0].id);
-  return NextResponse.json({ status: c.rows[0].status, messages: m.rows });
+  return NextResponse.json({ status: c.rows[0].status, visitor_name: c.rows[0].visitor_name, messages: m.rows });
 }
 
 // POST /api/chat : a visitor message in, the replies out.
@@ -116,8 +117,9 @@ export async function POST(req: Request) {
   const open = isOpen(new Date(), s.timezone, s.business_hours);
   let replied = false;
 
-  if (reopened === 'human' || reopened === 'needs_human') {
-    // a person owns this conversation: the agent stays silent
+  if (reopened === 'human') {
+    // a person took over this conversation: the agent stays silent.
+    // ("needs_human" only flags it for the team; the agent keeps helping.)
   } else if (!s.agent_enabled) {
     await setStatus('needs_human', 'Agent switched off');
     await say('system', AGENT_OFF_MESSAGE, { meta: { agent_off: true } });
@@ -136,12 +138,17 @@ export async function POST(req: Request) {
 
     if (result.ok) {
       const a = result.answer;
-      const text = a.reply.trim() || s.handoff_message;
+      const booking = a.intent === 'book_consultation';
+      const text = a.reply.trim() || (booking ? 'Sure! Pick a time that suits you just below.' : s.handoff_message);
       await say('agent', text, {
         fact_codes: a.fact_codes,
-        meta: { knew: a.knew, needs_human: a.needs_human, guardrail: a.guardrail, reason: a.reason },
+        meta: {
+          knew: a.knew, needs_human: a.needs_human, intent: a.intent, guardrail: a.guardrail, reason: a.reason,
+          ...(booking ? { action: 'booking' } : {}),
+        },
       });
-      if (a.needs_human) await setStatus('needs_human', a.reason || 'Agent did not know');
+      // booking is handled by the form, not by a person
+      if (a.needs_human && !booking) await setStatus('needs_human', a.reason || 'Agent did not know');
     } else {
       // the AI failed: the visitor still gets an answer, the team gets an alert
       await db().query(

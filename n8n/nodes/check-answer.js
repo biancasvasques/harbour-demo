@@ -67,6 +67,7 @@ return [{
     knew,
     fact_codes: unknown.length ? [] : cited,
     needs_human: needsHuman,
+    intent: ['question', 'book_consultation', 'talk_to_person', 'smalltalk'].includes(a.intent) ? a.intent : 'question',
     reason,
     guardrail,
     usage: resp.usage || null,

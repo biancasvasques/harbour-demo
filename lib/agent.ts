@@ -7,6 +7,7 @@ const AgentOk = z.object({
   knew: z.boolean(),
   fact_codes: z.array(z.string()),
   needs_human: z.boolean(),
+  intent: z.enum(['question', 'book_consultation', 'talk_to_person', 'smalltalk']).optional().default('question'),
   reason: z.string().optional().default(''),
   guardrail: z.string().nullable().optional().default(null),
 });

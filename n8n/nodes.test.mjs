@@ -34,7 +34,7 @@ test('build: only well-formed fact codes reach the model, format is forced', () 
   assert.equal(out.payload.model, 'claude-sonnet-5-5');
   assert.equal(out.payload.tool_choice, undefined); // forced tool use is a 400 on Sonnet 5.5
   assert.equal(out.payload.output_config.format.type, 'json_schema');
-  assert.deepEqual(out.payload.output_config.format.schema.required, ['reply', 'knew', 'fact_codes', 'needs_human', 'reason']);
+  assert.deepEqual(out.payload.output_config.format.schema.required, ['reply', 'knew', 'fact_codes', 'needs_human', 'intent', 'reason']);
   assert.match(out.payload.system[1].text, /\[F07\]/);
   assert.doesNotMatch(out.payload.system[1].text, /ignored/);
   assert.equal(out.payload.system[0].cache_control.type, 'ephemeral');
@@ -56,6 +56,13 @@ test('check: answer based on an approved fact passes', () => {
   assert.equal(out.needs_human, false);
   assert.deepEqual(out.fact_codes, ['F07']);
   assert.equal(out.guardrail, null);
+});
+
+test('check: booking intent passes through, unknown intents become question', () => {
+  const ok = run('check-answer.js', toolReply({ reply: 'Pick a time below.', knew: true, fact_codes: [], needs_human: false, intent: 'book_consultation' }), { 'Build request': built });
+  assert.equal(ok.intent, 'book_consultation');
+  const odd = run('check-answer.js', toolReply({ reply: 'Hi!', knew: true, fact_codes: [], needs_human: false, intent: 'whatever' }), { 'Build request': built });
+  assert.equal(odd.intent, 'question');
 });
 
 test('check: "I do not know" becomes needs_human', () => {
