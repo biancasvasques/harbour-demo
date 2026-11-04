@@ -220,3 +220,6 @@ input { font: inherit; }
 .survey .cta { width: 100%; justify-content: center; }
 .survey .field-error { margin: 0; font-size: 12.5px; color: #b42318; }
 .survey.done { gap: 8px; }
+
+/* ---------- every button is a pill ---------- */
+button, .cta, .chip, .slot, .primary, .icon-btn, .seg button, .stars button { border-radius: 999px; }
