@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tender Assistant walkthrough</title>
+<meta name="description" content="A simulated walkthrough of an AI tender assistant: from the tender arriving to an approved, fully sourced response.">
+<link rel="icon" href="/icon.png">
+<style>
+:root {
+  --bg: #f0f1f7; --surface: #fff; --surface-2: #f5f6fa; --text: #101828; --muted: #667085; --line: #e2e6f0;
+  --navy: #0a1020; --brand: #1d2458; --accent: #5e59e8; --accent-2: #8b7cf6; --soft: #e9e6ff; --apricot: #ff9d5c;
+  --ok: #2f7d5b; --ok-soft: #eaf6ef; --warn: #8a5a12; --warn-soft: #fff4df; --bad: #c94b4b; --bad-soft: #fdecec;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: radial-gradient(1200px 600px at 10% -10%, #e9e6ff 0%, transparent 60%), var(--bg);
+  color: var(--text); font: 15px/1.5 Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased; min-height: 100dvh;
+}
+button { font: inherit; cursor: pointer; }
+a { color: var(--accent); }
+.page { max-width: 1120px; margin: 0 auto; padding: 32px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 18px; }
+.intro { text-align: center; display: grid; gap: 6px; }
+.eyebrow { font-size: 12.5px; font-weight: 650; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); letter-spacing: -0.03em; line-height: 1.1; }
+.intro p { margin: 0 auto; color: var(--muted); max-width: 60ch; }
+
+/* app window */
+.window { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 2px 6px rgba(10,16,32,.05), 0 30px 70px -36px rgba(29,36,88,.45); overflow: hidden; }
+.bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: linear-gradient(135deg, var(--navy), var(--brand) 70%, var(--accent)); color: #fff; }
+.dots { display: flex; gap: 6px; } .dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.3); }
+.bar b { font-size: 14px; } .bar span { font-size: 13px; opacity: .75; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.body { display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 470px; }
+.rail { list-style: none; margin: 0; padding: 14px 10px; border-right: 1px solid var(--line); background: var(--surface-2); display: grid; gap: 2px; align-content: start; }
+.rail li { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 10px; font-size: 13.5px; color: var(--muted); }
+.rail li i { font-style: normal; width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; font-weight: 700; background: var(--surface); border: 1.5px solid var(--line); }
+.rail li.person i { border-style: dashed; }
+.rail li.done { color: var(--text); } .rail li.done i { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.rail li.on { background: var(--surface); color: var(--text); font-weight: 650; box-shadow: 0 1px 3px rgba(10,16,32,.08); }
+.rail li.on i { background: var(--accent); border-color: var(--accent); color: #fff; }
+.stage { position: relative; padding: 22px; display: grid; align-content: start; gap: 14px; min-width: 0; overflow: hidden; }
+.stage h2 { margin: 0; font-size: 19px; letter-spacing: -.01em; }
+.stage .sub { margin: -8px 0 0; color: var(--muted); font-size: 13.5px; }
+
+/* reveal */
+.r { opacity: 0; transform: translateY(8px); transition: opacity .45s, transform .45s cubic-bezier(.2,.7,.2,1); }
+.r.in { opacity: 1; transform: none; }
+
+/* shared bits */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 650; white-space: nowrap; background: var(--surface-2); color: var(--muted); transition: background .3s, color .3s; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.ai { background: var(--soft); color: var(--accent); } .pill.bad { background: var(--bad-soft); color: var(--bad); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 8px 10px; background: var(--surface-2); }
+td { padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+.tw { border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+.tw table { min-width: 560px; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+
+/* scene 1 */
+.drop { border: 2px dashed var(--line); border-radius: 18px; padding: 26px; display: grid; justify-items: center; gap: 12px; text-align: center; color: var(--muted); }
+.file { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 10px 24px -16px rgba(29,36,88,.5); width: min(440px, 100%); text-align: left; color: var(--text); }
+.file .ic { width: 38px; height: 46px; border-radius: 6px; background: var(--bad); color: #fff; display: grid; place-items: end center; font: 700 10px/1 var(--mono); padding-bottom: 7px; flex: none; }
+.file div { min-width: 0; flex: 1; } .file b { display: block; font-size: 14px; overflow-wrap: anywhere; } .file span { font-size: 12.5px; color: var(--muted); }
+.prog { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 6px; } .prog i { display: block; height: 100%; background: var(--accent); border-radius: inherit; width: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.meta div { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; }
+.meta span { font-size: 12px; color: var(--muted); } .meta b { font-size: 14.5px; overflow-wrap: anywhere; }
+
+/* scene 3 */
+.owner { display: inline-flex; align-items: center; gap: 6px; }
+.av { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 10.5px; font-weight: 700; color: #fff; flex: none; }
+.btn { border: 0; border-radius: 999px; padding: 10px 18px; background: var(--accent); color: #fff; font-weight: 650; transition: transform .15s, background .2s; }
+.btn.press { transform: scale(.94); background: var(--brand); }
+.btn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--line); }
+.toast { display: flex; align-items: center; gap: 8px; background: var(--ok-soft); color: var(--ok); border-radius: 12px; padding: 10px 12px; font-weight: 600; font-size: 14px; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* cursor */
+.cursor { position: absolute; left: 0; top: 0; width: 22px; height: 22px; pointer-events: none; z-index: 5; transition: transform .9s cubic-bezier(.3,.7,.2,1), opacity .3s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+
+/* scene 4 */
+.search { display: flex; align-items: center; gap: 10px; border: 1px solid var(--accent); box-shadow: 0 0 0 3px rgba(94,89,232,.14); border-radius: 999px; padding: 10px 16px; font-size: 14.5px; }
+.search .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--accent); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.results { display: grid; gap: 8px; }
+.res { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; transition: opacity .4s, background .4s; }
+.res .doc { width: 30px; height: 36px; border-radius: 5px; flex: none; display: grid; place-items: end center; font: 700 8.5px/1 var(--mono); color: #fff; padding-bottom: 5px; }
+.res div { flex: 1; min-width: 0; } .res b { display: block; font-size: 13.5px; overflow-wrap: anywhere; } .res span { font-size: 12.5px; color: var(--muted); }
+.res.out { opacity: .55; background: var(--surface-2); } .res.out b { text-decoration: line-through; }
+.lock { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); background: var(--surface-2); border-radius: 12px; padding: 9px 12px; }
+
+/* scene 5 */
+.draftgrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.req { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; }
+.draft { font-size: 15px; line-height: 1.7; min-height: 190px; }
+.cite { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 6px; background: var(--soft); color: var(--accent); font-size: 11px; font-weight: 700; vertical-align: 2px; margin-left: 2px; }
+.srcs { display: grid; gap: 8px; }
+.src { border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; font-size: 13px; transition: border-color .3s, background .3s; }
+.src b { display: block; font-size: 13px; overflow-wrap: anywhere; } .src span { color: var(--muted); font-size: 12px; }
+.src.hot { border-color: var(--accent); background: var(--soft); }
+.gap { border-radius: 12px; padding: 10px 12px; background: var(--warn-soft); color: var(--warn); font-size: 13.5px; }
+.gap b { display: block; }
+
+/* scene 6 */
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.checks li { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px; }
+.checks li .st { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--surface-2); color: var(--muted); transition: background .3s, color .3s; }
+.checks li.pass .st { background: var(--ok); color: #fff; } .checks li.flag .st { background: #c88324; color: #fff; }
+.checks li.flag { background: var(--warn-soft); border-color: #f7c37f; }
+.checks b { display: block; font-size: 14px; } .checks span { font-size: 13px; color: var(--muted); }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.codebadge { display: inline-flex; gap: 6px; align-items: center; font: 600 12px/1 var(--mono); color: var(--brand); background: var(--surface-2); border-radius: 8px; padding: 6px 8px; }
+
+/* scene 7 */
+.teams { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-width: 640px; }
+.chatrow { display: flex; gap: 10px; align-items: flex-start; }
+.bubble { border: 1px solid var(--line); border-radius: 4px 16px 16px 16px; padding: 12px 14px; background: var(--surface); flex: 1; min-width: 0; display: grid; gap: 8px; font-size: 13.5px; }
+.bubble .who { font-size: 12.5px; color: var(--muted); }
+.bubble .ex { border-left: 3px solid var(--accent); padding-left: 10px; color: var(--text); }
+.field { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; min-height: 38px; background: var(--surface-2); font-size: 13.5px; transition: border-color .3s, background .3s; }
+.field.typing { border-color: var(--accent); background: var(--surface); }
+.stamp { display: inline-flex; align-items: center; gap: 8px; border: 2px solid var(--ok); color: var(--ok); border-radius: 10px; padding: 6px 12px; font-weight: 750; transform: rotate(-2deg); }
+.log { font: 12.5px/1.6 var(--mono); color: var(--muted); background: var(--surface-2); border-radius: 12px; padding: 10px 12px; overflow-x: auto; white-space: nowrap; }
+
+/* scene 8 */
+.sumbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.sumbar div { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; } .sumbar span { display: block; font-size: 12px; color: var(--muted); } .sumbar b { font-size: 20px; letter-spacing: -.02em; }
+.end { position: absolute; inset: 0; background: rgba(255,255,255,.86); backdrop-filter: blur(2px); display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; padding: 24px; z-index: 6; }
+.end h3 { margin: 0; font-size: clamp(22px, 3vw, 30px); letter-spacing: -.02em; max-width: 22ch; }
+.end p { margin: 0; color: var(--muted); max-width: 50ch; }
+.end .row { justify-content: center; }
+.end a.btn { text-decoration: none; display: inline-block; }
+
+/* player */
+.caption { min-height: 52px; display: grid; place-items: center; text-align: center; font-size: 16.5px; font-weight: 550; color: var(--brand); padding: 0 8px; text-wrap: balance; }
+.caption span { transition: opacity .3s; }
+.controls { display: flex; align-items: center; gap: 12px; }
+.cbtn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--brand); flex: none; }
+.cbtn.main { width: 48px; height: 48px; background: var(--accent); color: #fff; border: 0; box-shadow: 0 8px 20px -10px rgba(94,89,232,.8); }
+.cbtn:focus-visible, .seg:focus-visible { outline: 3px solid var(--apricot); outline-offset: 2px; }
+.track { flex: 1; display: flex; gap: 4px; min-width: 0; }
+.seg { border: 0; padding: 10px 0; background: none; flex: var(--d) 1 0; min-width: 0; position: relative; }
+.seg::before { content: ''; display: block; height: 6px; border-radius: 999px; background: var(--line); }
+.seg i { position: absolute; left: 0; top: 10px; height: 6px; border-radius: 999px; background: var(--accent); width: 0; }
+.seg em { position: absolute; left: 0; right: 0; top: 20px; font-style: normal; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.time { font: 600 12.5px var(--mono); color: var(--muted); white-space: nowrap; }
+.foot { text-align: center; color: var(--muted); font-size: 13px; padding-top: 14px; }
+
+@media (max-width: 760px) {
+  .body { grid-template-columns: 1fr; min-height: 520px; }
+  .rail { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px; gap: 4px; }
+  .rail li { flex: none; } .rail li:not(.on) span { display: none; }
+  .draftgrid { grid-template-columns: 1fr; }
+  .stage { padding: 16px; }
+  .seg em { display: none; }
+  .bar span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .r, .cursor, .res, .src, .pill { transition: none; }
+  .spin, .search .caret { animation: none; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <span class="eyebrow">Simulated walkthrough</span>
+    <h1>The AI Tender Assistant, start to finish</h1>
+    <p>One tender, from the moment it arrives to an approved response where every sentence has a source and an owner. About 90 seconds. Invented tender and documents, no real AI calls.</p>
+  </header>
+
+  <div class="window" aria-label="Tender Assistant simulation">
+    <div class="bar"><div class="dots"><i></i><i></i><i></i></div><b>Tender Assistant</b><span>Northbridge Facilities · RFT 2026-114 City of Riverton</span></div>
+    <div class="body">
+      <ol class="rail" id="rail"></ol>
+      <div class="stage" id="stage" aria-live="off"></div>
+    </div>
+  </div>
+
+  <div class="caption" aria-live="polite"><span id="cap"></span></div>
+
+  <div class="controls">
+    <button class="cbtn" id="prev" aria-label="Previous step"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12M16 4l-8 6 8 6z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+    <button class="cbtn main" id="play" aria-label="Pause"></button>
+    <button class="cbtn" id="next" aria-label="Next step"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12M4 4l8 6-8 6z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+    <div class="track" id="track"></div>
+    <span class="time" id="time">0:00</span>
+  </div>
+
+  <p class="foot">A simulation for BizTech Pros by Bianca Vasques · Byoond. The parts that make this trustworthy already run in a live demo: <a href="/">an agent that answers only from approved facts</a> and <a href="/invoices">an invoice reader where code checks the AI</a>.</p>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const on = (el, cond, cls = 'in') => { if (el && el.classList.contains(cls) !== !!cond) el.classList.toggle(cls, !!cond); };
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
+  const PEOPLE = {
+    PS: ['Priya Shah', 'Bid lead', '#5e59e8'], SO: ['Sam Okafor', 'WHS Manager', '#2f7d5b'], LN: ['Lena Novak', 'Quality', '#c88324'],
+    MR: ['Marco Reyes', 'Operations', '#1d2458'], JT: ['Jess Tran', 'Finance', '#c94b4b'],
+  };
+  const av = (k) => `<span class="av" style="background:${PEOPLE[k][2]}">${k}</span>`;
+  const REQS = [
+    ['3.1', 'Company overview', 'p. 8', '300 words', '5%', false, 'MR'],
+    ['4.2', 'WHS management system', 'p. 14', '500 words', '15%', true, 'SO'],
+    ['4.5', 'Quality management (ISO 9001)', 'p. 15', '400 words', '10%', true, 'LN'],
+    ['5.1', 'Three similar contracts, last 5 years', 'p. 17', '1,000 words', '25%', false, 'MR'],
+    ['6.1', 'Pricing schedule', 'Attachment B', 'form', '35%', true, 'JT'],
+    ['7.3', 'Public liability insurance, $20M', 'p. 22', 'certificate', 'pass/fail', true, 'LN'],
+  ];
+  const CURSOR = '<svg class="cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2l16 10-7 1.5L9.5 21z" fill="#101828" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+
+  // Moves the fake pointer onto an element inside the stage.
+  function pointAt(stage, cursor, target, dx = 0.5, dy = 0.55) {
+    if (!target) { cursor.style.opacity = '0'; return; }
+    const s = stage.getBoundingClientRect(), r = target.getBoundingClientRect();
+    const tr = `translate(${Math.round(r.left - s.left + r.width * dx)}px, ${Math.round(r.top - s.top + r.height * dy)}px)`;
+    if (cursor.style.transform !== tr) cursor.style.transform = tr;
+    cursor.style.opacity = '1';
+  }
+  const typed = (s, t, t0, cps) => s.slice(0, Math.max(0, Math.floor((t - t0) * cps)));
+
+  const scenes = [
+    {
+      name: 'Receive', person: false, dur: 9,
+      caps: [[0, 'A new tender arrives: the City of Riverton wants a facilities maintenance contractor.'], [3.6, 'It is stored and fingerprinted, so every later step points to this exact version.']],
+      build(st) {
+        st.append(h('<h2>New tender</h2>'), h('<p class="sub">Dropped into the SharePoint library “Tenders / Incoming”</p>'));
+        const drop = h(`<div class="drop"><div class="file r"><span class="ic">PDF</span><div><b>RFT-2026-114_Facilities-Maintenance.pdf</b><span>48 pages · 3.2 MB · from tenders@riverton.nsw.gov.au</span><div class="prog"><i></i></div></div></div><span class="r hint">Uploading and indexing…</span></div>`);
+        const meta = h(`<div class="meta"><div class="r"><span>Tender ID</span><b>TND-0042</b></div><div class="r"><span>Received</span><b>4 Nov 2026, 9:12 am</b></div><div class="r"><span>Fingerprint (SHA-256)</span><b class="mono">9f3c…a71e</b></div><div class="r"><span>Closes</span><b>28 Nov 2026, 2:00 pm</b></div></div>`);
+        st.append(drop, meta);
+        const file = $('.file', drop), bar = $('.prog i', drop), hint = $('.hint', drop), cells = [...meta.children];
+        return (t) => {
+          on(file, t > 0.8); on(hint, t > 2 && t < 5.2);
+          bar.style.width = `${clamp((t - 2) / 2.8) * 100}%`;
+          cells.forEach((c, i) => on(c, t > 5 + i * 0.45));
+        };
+      },
+    },
+    {
+      name: 'Extract', person: false, dur: 11,
+      caps: [[0, 'The AI pulls out every question, limit, weighting and deadline into a fixed structure.'], [6, 'Each item keeps its page number, so anyone can check it against the original.']],
+      build(st) {
+        st.append(h('<h2>What the tender asks for</h2>'), h('<p class="sub"><span class="pill ai">Read by AI</span> · structured output, validated in code</p>'));
+        const tw = h(`<div class="tw"><table><thead><tr><th>Ref</th><th>Requirement</th><th>Where</th><th>Limit</th><th>Weight</th><th></th></tr></thead><tbody>${REQS.map((q) => `<tr class="r"><td><b>${q[0]}</b></td><td>${q[1]}</td><td class="muted">${q[2]}</td><td class="muted">${q[3]}</td><td>${q[4]}</td><td>${q[5] ? '<span class="pill bad">Mandatory</span>' : ''}</td></tr>`).join('')}</tbody></table></div>`);
+        const count = h('<p class="sub r" style="margin:0">6 requirements · 4 mandatory · 1 attachment · deadline 28 Nov 2:00 pm</p>');
+        st.append(tw, count);
+        const rows = [...tw.querySelectorAll('tbody tr')];
+        return (t) => { rows.forEach((r, i) => on(r, t > 0.9 + i * 1.05)); on(count, t > 7.6); };
+      },
+    },
+    {
+      name: 'Bid lead checks', person: true, dur: 9,
+      caps: [[0, 'Before any writing starts, the bid lead checks the list and gives each question an owner.'], [5.4, 'A mistake caught here costs minutes, not days.']],
+      build(st) {
+        st.append(h(`<div class="row"><h2 style="flex:1">Check the plan</h2>${av('PS')}<span class="muted" style="font-size:13.5px">Priya Shah, bid lead</span></div>`));
+        const tw = h(`<div class="tw"><table><thead><tr><th>Ref</th><th>Requirement</th><th>Owner</th><th>Due</th></tr></thead><tbody>${REQS.map((q) => `<tr><td><b>${q[0]}</b></td><td>${q[1]}</td><td><span class="owner r">${av(q[6])}${PEOPLE[q[6]][0]}</span></td><td class="muted"><span class="r">${q[6] === 'JT' ? '20 Nov' : '24 Nov'}</span></td></tr>`).join('')}</tbody></table></div>`);
+        const actions = h('<div class="row"><button class="btn" tabindex="-1">Confirm plan and start drafting</button><span class="toast r"><svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed by Priya Shah · 9:31 am</span></div>');
+        const cursor = h(CURSOR);
+        st.append(tw, actions, cursor);
+        const owners = [...tw.querySelectorAll('.owner')], dues = [...tw.querySelectorAll('td:last-child .r')];
+        const btn = $('.btn', actions), toast = $('.toast', actions);
+        return (t) => {
+          owners.forEach((o, i) => on(o, t > 0.8 + i * 0.6)); dues.forEach((o, i) => on(o, t > 1 + i * 0.6));
+          pointAt(st, cursor, t > 4.4 ? btn : owners[Math.min(5, Math.max(0, Math.floor((t - 0.8) / 0.6)))], t > 4.4 ? 0.5 : 0.9);
+          on(btn, t > 6 && t < 6.35, 'press'); on(toast, t > 6.3);
+        };
+      },
+    },
+    {
+      name: 'Find evidence', person: false, dur: 12,
+      caps: [[0, 'For question 4.2 it searches approved sources only: past bids, policies, certificates.'], [6.2, 'Expired certificates and old policy versions are left out automatically.'], [9.2, 'And it only sees the files the person running it is allowed to open.']],
+      build(st) {
+        st.append(h('<h2>Evidence for 4.2 · WHS management system</h2>'));
+        const search = h('<div class="search"><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" stroke="#5e59e8" stroke-width="2" fill="none"/><path d="M13 13l4 4" stroke="#5e59e8" stroke-width="2" stroke-linecap="round"/></svg><span class="q"></span><span class="caret"></span></div>');
+        const R = [
+          ['#c94b4b', 'PDF', 'ISO45001-certificate-2025.pdf', 'Certificate · valid to 03/2027', 'ok', 'Used'],
+          ['#1d4fd8', 'DOC', 'WHS-Policy-v7.docx', 'Policy · approved 08/2025', 'ok', 'Used'],
+          ['#1d4fd8', 'DOC', 'Riverton-Hospital-tender-2024.docx', 'Past submission · won', 'ok', 'Used'],
+          ['#c94b4b', 'PDF', 'ISO45001-certificate-2022.pdf', 'Expired 03/2025', 'bad', 'Excluded'],
+          ['#1d4fd8', 'DOC', 'WHS-Policy-v6.docx', 'Superseded by version 7', 'bad', 'Excluded'],
+        ];
+        const res = h(`<div class="results">${R.map((r) => `<div class="res r"><span class="doc" style="background:${r[0]}">${r[1]}</span><div><b>${r[2]}</b><span>${r[3]}</span></div><span class="pill">Found</span></div>`).join('')}</div>`);
+        const lock = h('<div class="lock r"><svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="9" width="12" height="8" rx="2" fill="currentColor"/><path d="M7 9V6.5a3 3 0 016 0V9" stroke="currentColor" stroke-width="2" fill="none"/></svg>3 HR files Priya cannot open were not searched.</div>');
+        st.append(search, res, lock);
+        const q = $('.q', search), items = [...res.children];
+        return (t) => {
+          setText(q, typed('WHS management system, ISO 45001, incident reporting', t, 0.5, 26));
+          items.forEach((it, i) => {
+            on(it, t > 3 + i * 0.6);
+            const done = t > 6.2 + i * 0.35, pill = $('.pill', it), r = R[i];
+            setText(pill, done ? r[5] : 'Found'); on(pill, done, r[4]); on(it, done && r[4] === 'bad', 'out');
+          });
+          on(lock, t > 9.2);
+        };
+      },
+    },
+    {
+      name: 'Draft', person: false, dur: 13,
+      caps: [[0, 'Now it writes, using only the passages it found.'], [4.5, 'Every sentence carries its source.'], [10, 'What it cannot support goes on a gap list. It is never made up.']],
+      build(st) {
+        const SEG = [
+          'Northbridge’s WHS management system is certified to ISO 45001', 1,
+          '. It is set out in our WHS Policy (version 7), covering hazard identification, risk assessment, worker consultation and incident reporting', 2,
+          '. Incidents are logged in our field app within 24 hours and reviewed weekly by the WHS Manager', 2,
+          '. On the Riverton Hospital contract we were on site within 2 hours for critical incidents', 3, '.',
+        ];
+        const total = SEG.reduce((n, s) => n + (typeof s === 'string' ? s.length : 0), 0);
+        const g = h(`<div class="draftgrid"><div style="display:grid;gap:10px"><div class="req"><b>4.2 · Describe your WHS management system</b><br><span class="muted">p. 14 · mandatory · 500 words · 15%</span></div><div class="card draft"></div><div class="gap r"><b>Gap: not in approved documents</b>Lost-time injury frequency rate for the last 3 years.</div></div><div class="srcs"><span class="muted" style="font-size:12.5px;font-weight:600">SOURCES</span>${[['ISO45001-certificate-2025.pdf', 'p. 1 · valid to 03/2027'], ['WHS-Policy-v7.docx', 'section 3.2 · approved 08/2025'], ['Riverton-Hospital-tender-2024.docx', 'answer 6.4 · submitted 05/2024']].map((s, i) => `<div class="src r"><b>[${i + 1}] ${s[0]}</b><span>${s[1]}</span></div>`).join('')}</div></div>`);
+        st.append(h('<h2>Draft answer</h2>'), h('<p class="sub"><span class="pill ai">Written by AI</span> · only from the 3 passages retrieved</p>'), g);
+        const draft = $('.draft', g), gap = $('.gap', g), srcs = [...g.querySelectorAll('.src')];
+        let last = -1;
+        return (t) => {
+          const n = Math.floor(clamp((t - 0.8) / 8.6) * total);
+          srcs.forEach((s, i) => on(s, t > 0.4 + i * 0.2));
+          on(gap, t > 10);
+          if (n === last) return; last = n;
+          let left = n, html = '', active = 0;
+          for (const s of SEG) {
+            if (typeof s === 'string') { html += s.slice(0, left); left -= Math.min(left, s.length); if (left === 0 && n < total) break; }
+            else { html += `<span class="cite">${s}</span>`; active = s; }
+          }
+          draft.innerHTML = html + (n < total ? '<span class="caret" style="display:inline-block;width:2px;height:1em;background:#5e59e8;vertical-align:-2px"></span>' : '');
+          srcs.forEach((s, i) => on(s, n < total && active === i + 1, 'hot'));
+        };
+      },
+    },
+    {
+      name: 'Check in code', person: false, dur: 10,
+      caps: [[0, 'Then plain code checks the draft. Not the AI checking itself.'], [5.4, 'Promises, prices and dates are flagged for a person to confirm.']],
+      build(st) {
+        st.append(h('<div class="row"><h2 style="flex:1">Checks before anyone reads it</h2><span class="codebadge">checks.ts · 0 AI calls</span></div>'));
+        const C = [
+          ['pass', 'Every citation is in the retrieved set', '3 of 3 sources found in the search results'],
+          ['pass', 'Within the word limit', '412 of 500 words'],
+          ['pass', 'Mandatory criterion addressed', 'ISO 45001 certification named and evidenced'],
+          ['flag', 'Commitment found, needs a person', '“on site within 2 hours for critical incidents”'],
+          ['flag', 'One gap still open', 'Lost-time injury frequency rate'],
+        ];
+        const ul = h(`<ul class="checks">${C.map((c) => `<li class="r"><span class="st"></span><div><b>${c[1]}</b><span>${c[2]}</span></div></li>`).join('')}</ul>`);
+        st.append(ul);
+        const lis = [...ul.children];
+        return (t) => lis.forEach((li, i) => {
+          const t0 = 0.6 + i * 1.1, done = t > t0 + 0.7, st_ = $('.st', li);
+          on(li, t > t0); on(li, done && C[i][0] === 'pass', 'pass'); on(li, done && C[i][0] === 'flag', 'flag');
+          const want = done ? (C[i][0] === 'pass' ? '✓' : '!') : '';
+          if (!done && t > t0 && !st_.firstChild) st_.innerHTML = '<span class="spin"></span>';
+          if (done && st_.textContent !== want) st_.textContent = want;
+          if (t <= t0 && st_.firstChild) st_.innerHTML = '';
+        });
+      },
+    },
+    {
+      name: 'Owner reviews', person: true, dur: 12,
+      caps: [[0, 'The answer goes to its owner in Teams, with the draft, the sources and the gaps.'], [3.2, 'Sam fills the gap from the WHS annual report.'], [8, 'He approves. Who did what, and when, is recorded.']],
+      build(st) {
+        st.append(h(`<div class="row"><h2 style="flex:1">Microsoft Teams</h2>${av('SO')}<span class="muted" style="font-size:13.5px">Sam Okafor, WHS Manager</span></div>`));
+        const card = h(`<div class="teams"><div class="chatrow"><span class="av" style="background:#5e59e8;width:30px;height:30px">TA</span><div class="bubble"><span class="who">Tender Assistant · 10:42 am</span><b>RFT 2026-114 · 4.2 WHS management system needs your review</b><div class="ex">Northbridge’s WHS management system is certified to ISO 45001 <span class="cite">1</span>. It is set out in our WHS Policy (version 7)… <span class="muted">412 words · 3 sources</span></div><span class="pill warn" style="justify-self:start">Gap: lost-time injury rate, last 3 years</span><div class="field"></div><div class="row"><button class="btn" tabindex="-1">Approve</button><button class="btn ghost" tabindex="-1">Edit draft</button><button class="btn ghost" tabindex="-1">Reject</button></div><span class="stamp r">✓ Approved by Sam Okafor · 10:47 am</span></div></div></div>`);
+        const log = h('<div class="log r">10:47:12 TND-0042 q4.2 approved by sam.okafor@northbridge · gap filled · sources [1][2][3] + WHS-Annual-Report-2025.pdf</div>');
+        const cursor = h(CURSOR);
+        st.append(card, log, cursor);
+        const field = $('.field', card), btn = $('.btn', card), stamp = $('.stamp', card);
+        const reply = 'LTIFR 1.2 (2023), 0.9 (2024), 0.6 (2025). Source: WHS-Annual-Report-2025.pdf, p. 6';
+        return (t) => {
+          const s = typed(reply, t, 3.4, 22);
+          setText(field, s || (t > 2.6 ? '' : 'Add the missing figure…'));
+          on(field, t > 2.6 && t < 7.4, 'typing'); field.style.color = s ? '' : 'var(--muted)';
+          pointAt(st, cursor, t > 7 ? btn : field, 0.5, t > 7 ? 0.6 : 0.5);
+          on(btn, t > 8.1 && t < 8.45, 'press'); on(stamp, t > 8.4); on(log, t > 9.2);
+        };
+      },
+    },
+    {
+      name: 'Assemble', person: false, dur: 12,
+      caps: [[0, 'Approved answers go into the response template.'], [3.8, 'With a compliance matrix: every requirement, its answer, its evidence and who approved it.']],
+      build(st) {
+        st.append(h('<h2>Response and compliance matrix</h2>'));
+        const sum = h('<div class="sumbar"><div><span>Approved</span><b class="n">0 of 6</b></div><div><span>Sources cited</span><b>14</b></div><div><span>Open gaps</span><b>0</b></div><div><span>Closes in</span><b>23 days</b></div></div>');
+        const tw = h(`<div class="tw"><table><thead><tr><th>Ref</th><th>Requirement</th><th>Evidence</th><th>Approved by</th><th>Status</th></tr></thead><tbody>${REQS.map((q, i) => `<tr><td><b>${q[0]}</b></td><td>${q[1]}</td><td class="muted">${[2, 4, 3, 5, 1, 1][i]} sources</td><td><span class="owner r">${av(q[6])}${PEOPLE[q[6]][0]}</span></td><td><span class="pill">Drafted</span></td></tr>`).join('')}</tbody></table></div>`);
+        const dl = h('<div class="row r"><button class="btn" tabindex="-1">Download response (.docx)</button><button class="btn ghost" tabindex="-1">Compliance matrix (.xlsx)</button></div>');
+        const end = h(`<div class="end r" style="pointer-events:none"><h3>Every answer has a source, an owner and an approval.</h3><p>The AI reads and drafts. Code checks. People decide. Nothing is sent that nobody signed off.</p><div class="row"><button class="btn" data-replay>Watch again</button><a class="btn ghost" href="/">Try the live agent</a></div></div>`);
+        st.append(sum, tw, dl, end);
+        const pills = [...tw.querySelectorAll('.pill')], owners = [...tw.querySelectorAll('.owner')], n = $('.n', sum);
+        const order = [1, 0, 2, 5, 3, 4];
+        return (t) => {
+          let count = 0;
+          order.forEach((row, k) => {
+            const t0 = 0.8 + k * 0.9, fin = row === 4;
+            const done = t > t0; if (done && !fin) count++;
+            setText(pills[row], !done ? 'Drafted' : fin ? 'With Finance' : 'Approved');
+            on(pills[row], done && !fin, 'ok'); on(pills[row], done && fin, 'warn'); on(owners[row], done);
+          });
+          setText(n, `${count} of 6`); on(dl, t > 6.6);
+          on(end, t > 9.2); end.style.pointerEvents = t > 9.2 ? 'auto' : 'none';
+        };
+      },
+    },
+  ];
+
+  /* ---------------- player: every frame is a pure function of (scene, time) ---------------- */
+  const stage = $('#stage'), rail = $('#rail'), cap = $('#cap'), track = $('#track'), play = $('#play'), time = $('#time');
+  const TOTAL = scenes.reduce((s, x) => s + x.dur, 0);
+  rail.innerHTML = scenes.map((s, i) => `<li class="${s.person ? 'person' : ''}"><i>${i + 1}</i><span>${s.name}</span></li>`).join('');
+  track.innerHTML = scenes.map((s, i) => `<button class="seg" style="--d:${s.dur}" aria-label="Step ${i + 1}: ${s.name}"><i></i><em>${s.name}</em></button>`).join('');
+  const segs = [...track.children], railItems = [...rail.children];
+  const ICON_PAUSE = '<svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1" fill="currentColor"/><rect x="11.5" y="4" width="3.5" height="12" rx="1" fill="currentColor"/></svg>';
+  const ICON_PLAY = '<svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>';
+
+  let idx = 0, t = 0, playing = true, last = null, update = () => {};
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  function go(n, at = 0) {
+    idx = Math.max(0, Math.min(scenes.length - 1, n)); t = at;
+    stage.innerHTML = '';
+    update = scenes[idx].build(stage);
+    railItems.forEach((li, i) => { on(li, i === idx, 'on'); on(li, i < idx, 'done'); });
+    const r = stage.querySelector('[data-replay]'); if (r) r.onclick = () => { go(0); setPlaying(true); };
+    update(t);
+  }
+  function setPlaying(p) { playing = p; play.innerHTML = p ? ICON_PAUSE : ICON_PLAY; play.setAttribute('aria-label', p ? 'Pause' : 'Play'); last = null; }
+
+  function frame(ts) {
+    if (playing && last !== null) t += (ts - last) / 1000;
+    last = ts;
+    const sc = scenes[idx];
+    if (t >= sc.dur) {
+      if (idx < scenes.length - 1) go(idx + 1); else { t = sc.dur; setPlaying(false); }
+    }
+    update(t);
+    const c = [...sc.caps].reverse().find((x) => t >= x[0]);
+    setText(cap, c ? c[1] : '');
+    segs.forEach((s, i) => { s.firstChild.style.width = `${i < idx ? 100 : i === idx ? clamp(t / sc.dur) * 100 : 0}%`; });
+    const elapsed = scenes.slice(0, idx).reduce((a, x) => a + x.dur, 0) + t;
+    setText(time, `${fmt(elapsed)} / ${fmt(TOTAL)}`);
+    requestAnimationFrame(frame);
+  }
+
+  play.onclick = () => { if (!playing && idx === scenes.length - 1 && t >= scenes[idx].dur) go(0); setPlaying(!playing); };
+  $('#prev').onclick = () => go(t > 1.5 ? idx : idx - 1);
+  $('#next').onclick = () => go(idx + 1);
+  segs.forEach((s, i) => s.onclick = (ev) => {
+    const r = s.getBoundingClientRect();
+    go(i, clamp((ev.clientX - r.left) / r.width) * scenes[i].dur * (ev.detail ? 1 : 0));
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.target.closest('button') && ev.key === ' ') return;
+    if (ev.key === ' ') { ev.preventDefault(); play.click(); }
+    if (ev.key === 'ArrowRight') go(idx + 1);
+    if (ev.key === 'ArrowLeft') go(idx - 1);
+  });
+  window.addEventListener('resize', () => update(t));
+
+  setPlaying(true);
+  go(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

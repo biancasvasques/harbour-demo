@@ -7,6 +7,7 @@ A customer-support agent for an invented study-abroad agency in Sydney. It answe
 | Chat (what a visitor sees) | https://harbour-demo-theta.vercel.app |
 | Team panel | https://harbour-demo-theta.vercel.app/admin (password sent separately) |
 | Invoice reader (accounts payable) | https://harbour-demo-theta.vercel.app/invoices |
+| Tender Assistant walkthrough (simulation, 90 s) | https://harbour-demo-theta.vercel.app/tender |
 | Health check | https://harbour-demo-theta.vercel.app/api/health |
 
 Harbour Study Abroad, its address, facts and people are invented for this demo. Please don't type real personal data.
@@ -154,6 +155,12 @@ The *Simulate AI failure* switch in the team panel applies here too: the read fa
 
 ---
 
+## Third: the AI Tender Assistant, as a walkthrough
+
+https://harbour-demo-theta.vercel.app/tender
+
+A 90-second simulation (plain HTML, no AI calls, invented tender) of how the assistant would handle one tender: receive and fingerprint the file, extract the requirements, the bid lead confirms the plan, search approved evidence only (expired and superseded documents excluded, the user's own permissions), draft with a source on every sentence and a gap list, check the draft in code, route it to its owner in Teams for approval, and assemble the response with a compliance matrix. Play, pause, or jump to any step.
+
 ## Project layout
 
 | Path | What it is |
@@ -166,6 +173,7 @@ The *Simulate AI failure* switch in the team panel applies here too: the read fa
 | `lib/hours.ts`, `lib/booking.ts` | Office hours, free times (Sydney, DST safe) and reservations |
 | `app/invoices`, `app/api/payables` | The invoice reader: review screen and its API |
 | `lib/payable-checks.ts` | The invoice checks (ABN, GST, totals, duplicates), with tests |
+| `public/tender.html` | The Tender Assistant walkthrough (self-contained page) |
 | `db/` | Database migrations, applied on every build |
 | `n8n/` | The workflow: one file per box in `n8n/nodes/`, the builder, and tests |
 
