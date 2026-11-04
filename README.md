@@ -6,6 +6,7 @@ A customer-support agent for an invented study-abroad agency in Sydney. It answe
 | :-- | :-- |
 | Chat (what a visitor sees) | https://harbour-demo-theta.vercel.app |
 | Team panel | https://harbour-demo-theta.vercel.app/admin (password sent separately) |
+| Invoice reader (accounts payable) | https://harbour-demo-theta.vercel.app/invoices |
 | Health check | https://harbour-demo-theta.vercel.app/api/health |
 
 Harbour Study Abroad, its address, facts and people are invented for this demo. Please don't type real personal data.
@@ -131,6 +132,21 @@ Open the chat in one tab and the team panel in another. Before you start, click 
 
 ---
 
+## Second workflow: supplier invoices, read by AI and approved by a person
+
+https://harbour-demo-theta.vercel.app/invoices
+
+The same company's back office. A supplier invoice comes in, the AI copies what is printed, code checks it, and nothing becomes a cost until a person approves it.
+
+1. **Read (AI).** A second n8n workflow sends the image to Claude (vision) with a fixed output format: supplier, ABN, invoice number, dates, line items, subtotal, GST and total. Anything it cannot read comes back empty, never guessed.
+2. **Check (code).** The app checks the ABN against the official checksum, that the line items add up, that GST is 10%, that subtotal plus GST equals the total, the due date, and whether the same invoice was already approved.
+3. **Decide (a person).** The reviewer sees the document next to the extracted fields and the checks. They can correct a field (every check runs again), approve, or reject. An invoice with a problem can only be approved with a written reason, kept with the invoice.
+4. **Cost.** Approved invoices feed the totals: approved costs, GST you can claim, and what is due in the next 14 days.
+
+**Try it in 2 minutes:** read *Bondi Homestay* (clean, approve it), *Harbourside Airport Transfers* (the GST is wrong: correct it to 29.50 and the total to 324.50, then approve), and *OfficeHub* (already paid last month: the duplicate check catches it, reject it). You can also upload a photo of your own invoice or receipt. The *Simulate AI failure* switch in the team panel applies here too: the read fails cleanly and the panel shows the alert.
+
+---
+
 ## Project layout
 
 | Path | What it is |
@@ -141,6 +157,8 @@ Open the chat in one tab and the team panel in another. Before you start, click 
 | `app/api/booking`, `app/api/tools/*` | Booking form and the two tools the workflow calls (key protected) |
 | `lib/agent.ts` | The contract with the workflow. Anything outside it is treated as a failure |
 | `lib/hours.ts`, `lib/booking.ts` | Office hours, free times (Sydney, DST safe) and reservations |
+| `app/invoices`, `app/api/payables` | The invoice reader: review screen and its API |
+| `lib/payable-checks.ts` | The invoice checks (ABN, GST, totals, duplicates), with tests |
 | `db/` | Database migrations, applied on every build |
 | `n8n/` | The workflow: one file per box in `n8n/nodes/`, the builder, and tests |
 
@@ -151,7 +169,7 @@ node --test n8n/
 ```
 
 ```bash
-node --experimental-strip-types --test tests/hours.test.ts
+node --experimental-strip-types --test tests/hours.test.ts tests/payable-checks.test.ts
 ```
 
 ## Configuration

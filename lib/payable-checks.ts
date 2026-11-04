@@ -71,10 +71,15 @@ export function runChecks(e: Extracted, existing: Existing[], selfId?: string): 
   const lineCents = e.line_items.map((l) => toCents(l.amount));
   if (lineCents.length && lineCents.every((c) => c !== null)) {
     const sum = (lineCents as number[]).reduce((a, b) => a + b, 0);
-    const target = sub ?? (total !== null && gst !== null ? total - gst : null);
-    if (target !== null) {
-      if (Math.abs(sum - target) > TOLERANCE_CENTS) add('error', 'lines_mismatch', `Line items add up to ${money(sum)}, but the subtotal is ${money(target)}.`);
+    if (sub !== null) {
+      if (Math.abs(sum - sub) > TOLERANCE_CENTS) add('error', 'lines_mismatch', `Line items add up to ${money(sum)}, but the subtotal is ${money(sub)}.`);
       else add('ok', 'lines_match', 'Line items add up to the subtotal.');
+    } else if (total !== null) {
+      // no subtotal printed (typical receipt): lines may include GST or not
+      const exGst = gst !== null ? total - gst : null;
+      const near = (x: number | null) => x !== null && Math.abs(sum - x) <= TOLERANCE_CENTS;
+      if (near(total) || near(exGst)) add('ok', 'lines_match', 'Line items add up to the total.');
+      else add('error', 'lines_mismatch', `Line items add up to ${money(sum)}, but the total is ${money(total)}.`);
     }
   }
 

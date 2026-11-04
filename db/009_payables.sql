@@ -34,9 +34,9 @@ create table harbour.document_reads (
 -- something real to catch when the same OfficeHub invoice comes in again.
 create or replace function harbour.seed_payables() returns void
 language sql as $$
-  insert into harbour.payables (source, status, supplier, abn, invoice_number, invoice_date, due_date,
+  insert into harbour.payables (source, sample_key, status, supplier, abn, invoice_number, invoice_date, due_date,
                                 subtotal_cents, gst_cents, total_cents, decided_at, decision_note, extracted)
-  values ('seed', 'approved', 'OfficeHub Supplies', '31864452323', 'OH-2291', date '2026-10-15', date '2026-11-14',
+  values ('seed', 'officehub', 'approved', 'OfficeHub Supplies', '31864452323', 'OH-2291', date '2026-10-15', date '2026-11-14',
           30300, 3030, 33330, now() - interval '12 days', 'Approved by Alex',
           '{"line_items":[{"description":"A4 copy paper (ream)","quantity":10,"amount":65},{"description":"Printer toner cartridge","quantity":2,"amount":178},{"description":"Student welcome folders","quantity":50,"amount":60}]}'::jsonb);
 $$;

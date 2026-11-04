@@ -63,3 +63,9 @@ test('missing ABN and missing due date are warnings, not errors', () => {
   assert.equal(hasErrors(checks), false);
   assert.deepEqual(checks.filter((c) => c.level === 'warning').map((c) => c.code), ['abn_missing', 'no_due_date']);
 });
+
+test('a receipt without a subtotal: lines that include GST add up to the total', () => {
+  const r = { ...base, document_type: 'receipt' as const, subtotal: null, gst: 1, total: 11, line_items: [{ description: 'Coffee', quantity: 2, amount: 11 }] };
+  assert.ok(!codes(r).includes('lines_mismatch'));
+  assert.ok(codes({ ...r, total: 20, gst: 2 }).includes('lines_mismatch'));
+});

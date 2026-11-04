@@ -27,6 +27,7 @@ const aud = (cents: number | null | undefined) =>
 const day = (iso: string | null) =>
   iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '–';
 const daysUntil = (iso: string | null) => (iso ? Math.round((Date.parse(iso + 'T00:00:00') - Date.now()) / 86_400_000) : null);
+const LABEL = { review: 'Waiting for review', approved: 'Approved', rejected: 'Rejected' } as const;
 const imageOf = (p: Payable) => (p.sample_key ? SAMPLES.find((s) => s.key === p.sample_key)?.file : `/api/payables/${p.id}/image`);
 
 // Downscale in the browser: smaller upload, cheaper AI read, nothing kept at full size.
@@ -127,7 +128,7 @@ function Review({ p, onChange }: { p: Payable; onChange: (p: Payable) => void })
       <div className="ap-side">
         <div className="ap-side-head">
           <h2>{p.supplier ?? 'Unknown supplier'}</h2>
-          <span className={`ap-pill ${p.status}`}>{p.status === 'review' ? 'Waiting for review' : p.status}</span>
+          <span className={`ap-pill ${p.status}`}>{LABEL[p.status]}</span>
         </div>
         <p className="ap-muted">Read by AI{p.edited ? ', corrected by a person' : ''}. Empty fields were not readable: the AI never guesses.</p>
 
@@ -318,7 +319,7 @@ export default function Payables() {
                       <td>{day(p.due_date)}{p.status === 'approved' && d !== null && d <= 7 && <em className="ap-tag warn">{d < 0 ? 'overdue' : `in ${d} d`}</em>}</td>
                       <td className="num">{aud(p.total_cents)}</td>
                       <td>
-                        <span className={`ap-pill ${p.status}`}>{p.status === 'review' ? 'Review' : p.status}</span>
+                        <span className={`ap-pill ${p.status}`}>{p.status === 'review' ? 'Review' : LABEL[p.status]}</span>
                         {p.status === 'review' && flags > 0 && <em className="ap-tag err">{flags} {flags === 1 ? 'problem' : 'problems'}</em>}
                       </td>
                     </tr>
